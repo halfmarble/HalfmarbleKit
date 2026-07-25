@@ -91,6 +91,14 @@ public enum HMMenu {
         bg.strokeWidth = 1.5
         cfg.background = bg
         b.configuration = cfg
+        // ONE motion per press, not three (gerard: the pill "fluttered"): a
+        // configuration button re-applies its whole configuration on every
+        // state change — UIKit's own highlight dim stacking on top of the
+        // press feedback's darken + scale. Freeze the automatic updates; the
+        // kit's press feedback is the single source of touch response.
+        // (Manual `configuration?.x = y` mutations — the toggles — still
+        // apply immediately; only STATE-driven re-renders are silenced.)
+        b.automaticallyUpdatesConfiguration = false
         addPressFeedback(to: b)
         return b
     }

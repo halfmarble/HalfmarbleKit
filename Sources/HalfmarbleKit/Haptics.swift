@@ -23,6 +23,11 @@ public enum HMHaptics {
             || UserDefaults.standard.bool(forKey: HMDefaultsKeys.hapticsEnabled)
     }
 
+    /// Warm a generator ahead of a burst (the Taptic Engine spin-up).
+    nonisolated public static func prepare(style: Style = .light) {
+        Task { @MainActor in generators[style]?.prepare() }
+    }
+
     /// Fire an impact. Safe from any thread; a no-op when haptics are off.
     nonisolated public static func impact(_ intensity: CGFloat, style: Style = .light) {
         Task { @MainActor in

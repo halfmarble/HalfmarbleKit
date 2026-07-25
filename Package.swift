@@ -16,6 +16,9 @@ let package = Package(
         .library(name: "HalfmarbleKit", targets: ["HalfmarbleKit"]),
     ],
     targets: [
-        .target(name: "HalfmarbleKit"),
+        .target(
+            name: "HalfmarbleKit",
+            resources: [.process("Resources")]   // the halfmarble ring mark
+        ),
     ]
 )

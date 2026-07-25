@@ -30,8 +30,13 @@ public enum HMMenu {
 
     // MARK: Tremor debounce (shared by every kit button)
 
-    /// One 5 Hz resting-tremor period — the same constant both apps ship.
-    public static let menuTapCooldown: TimeInterval = 0.25
+    /// One full period of a 5 Hz Parkinsonian rest tremor (1 / 5 Hz = 0.20 s;
+    /// 5 Hz is the middle of the ~4–6 Hz band) — wide enough to swallow the
+    /// fastest same-run tremor bounce, short enough that a deliberate re-press
+    /// still registers. The SAME tuned constant StringFusor's in-game commit
+    /// controls use (its tremor-debounce commit grounds the rationale); the
+    /// old 0.25 here was the untuned legacy value with a mislabelled comment.
+    public static let menuTapCooldown: TimeInterval = 0.20
     nonisolated(unsafe) private static var lastMenuTapDown: TimeInterval = -1
 
     /// Leading-edge throttle: true — and arms the cooldown — if a menu tap at

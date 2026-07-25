@@ -172,22 +172,34 @@ public enum HMMenu {
             if !acceptMenuTap() { b.cancelTracking(with: nil) }
         }, for: .touchDown)
 
+        // TWO press looks, one per button anatomy (gerard: the pills TWITCHED —
+        // mutating configuration.baseForegroundColor re-renders the WHOLE
+        // configuration, background and outlined title included, every press
+        // edge). CONFIG buttons (pills) never touch their configuration:
+        // alpha + scale only, one animated block each way. Plain buttons (the
+        // CTA) keep the classic title darken — recoloring an attributed title
+        // in place doesn't re-render anything else.
+        let isConfigButton = b.configuration != nil
         var restingFg: UIColor?          // per-button, shared by the down/up closures
         b.addAction(UIAction { [weak b] _ in
             guard let b else { return }
-            restingFg = buttonForeground(b)
-            setButtonForeground(b, restingFg?.hmDarkened(by: 0.45))
+            if !isConfigButton {
+                restingFg = buttonForeground(b)
+                setButtonForeground(b, restingFg?.hmDarkened(by: 0.45))
+            }
             UIView.animate(withDuration: 0.09, delay: 0,
                            options: [.allowUserInteraction, .beginFromCurrentState]) {
                 b.transform = CGAffineTransform(scaleX: 0.93, y: 0.93)
+                if isConfigButton { b.alpha = 0.72 }
             }
         }, for: [.touchDown, .touchDragEnter])
         b.addAction(UIAction { [weak b] _ in
             guard let b else { return }
-            if let r = restingFg { setButtonForeground(b, r) }
+            if !isConfigButton, let r = restingFg { setButtonForeground(b, r) }
             UIView.animate(withDuration: 0.16, delay: 0,
                            options: [.allowUserInteraction, .beginFromCurrentState]) {
                 b.transform = .identity
+                if isConfigButton { b.alpha = 1 }
             }
         }, for: [.touchUpInside, .touchUpOutside, .touchCancel, .touchDragExit])
     }

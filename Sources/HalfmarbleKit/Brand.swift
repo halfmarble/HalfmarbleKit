@@ -25,9 +25,12 @@ public enum HMBrand {
         UIImage(named: "halfmarble_logo", in: .module, with: nil)?
             .withRenderingMode(.alwaysTemplate)
     }
-    /// The same mark for SwiftUI hosts.
+    /// The same mark for SwiftUI hosts. UIImage-backed on purpose:
+    /// UIImage(named:in:) reliably finds LOOSE bundle files, where SwiftUI's
+    /// Image(_:bundle:) proved unwilling (blank 22pt frame, 2026-07-25).
     public static var logoImage: Image {
-        Image("halfmarble_logo", bundle: .module).renderingMode(.template)
+        if let ui = logo { return Image(uiImage: ui).renderingMode(.template) }
+        return Image(systemName: "circle.dashed")   // visible fallback, never a silent blank
     }
 
     // MARK: Lockup metrics — the splash's BIG centred lockup and the header's

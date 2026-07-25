@@ -52,6 +52,12 @@ public enum HMMenu {
     /// cooldown), which would leak between unit tests — reset it explicitly.
     public static func resetMenuTapDebounce() { lastMenuTapDown = -1 }
 
+    /// The click every kit button plays on an ACCEPTED tap — install once per
+    /// app (StringFusor: `{ audio.play(.uiTap) }`). Nil = silent buttons.
+    /// ViroFlick deliberately does NOT install it: its button handlers already
+    /// play their own uiTap, and the hook would double-fire.
+    nonisolated(unsafe) public static var onTap: (() -> Void)?
+
     // MARK: Builders
 
     /// The pill's SF Symbol, tinted white and given a black outline.
@@ -202,6 +208,9 @@ public enum HMMenu {
                 if isConfigButton { b.titleLabel?.alpha = 1; b.imageView?.alpha = 1 }
             }
         }, for: [.touchUpInside, .touchUpOutside, .touchCancel, .touchDragExit])
+        // The house click, on the accepted tap only (a debounced tap was
+        // cancelTracking'd on touch-down and never reaches touchUpInside).
+        b.addAction(UIAction { _ in onTap?() }, for: .touchUpInside)
     }
 
     /// The button's current title/foreground colour, whichever styling API it

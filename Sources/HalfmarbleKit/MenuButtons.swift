@@ -178,34 +178,36 @@ public enum HMMenu {
             if !acceptMenuTap() { b.cancelTracking(with: nil) }
         }, for: .touchDown)
 
-        // The press, third and FINAL iteration (gerard's clip, 2026-07-25):
-        // pills respond with SCALE ALONE. Every glyph treatment tried —
-        // configuration recolor (re-rendered the whole button: twitch), whole-
-        // button alpha, subview alpha (dimmed the label to near-nothing on the
-        // dark pill, then flashed back with a crossfade ghost as the release
-        // landed) — made the press LOUDER, not quieter. The dip-and-release
-        // motion is feedback enough; the glyphs never change. Plain buttons
-        // (the CTA) keep the classic in-place attributed-title darken — solid
-        // type on a light capsule wears it well, and it has never twitched.
-        let isConfigButton = b.configuration != nil
-        var restingFg: UIColor?          // per-button, shared by the down/up closures
-        b.addAction(UIAction { [weak b] _ in
-            guard let b else { return }
-            if !isConfigButton {
-                restingFg = buttonForeground(b)
-                setButtonForeground(b, restingFg?.hmDarkened(by: 0.45))
-            }
-            UIView.animate(withDuration: 0.09, delay: 0,
+        // THE HOUSE PRESS = the console DROP pill's (gerard, 2026-07-25, after
+        // three glyph-treatment iterations all read as noise): the capsule
+        // LIGHTS UP while held — fill brightens, stroke brightens — and eases
+        // off on release. Nothing scales, no glyph ever changes, and it's an
+        // OVERLAY view, so no configuration re-render can twitch it. The
+        // overlay slides under the title/image so the glyphs stay crisp on
+        // top of the lit fill, exactly like the SwiftUI console pills.
+        let glow = UIView()
+        glow.isUserInteractionEnabled = false
+        glow.alpha = 0
+        glow.backgroundColor = UIColor.white.withAlphaComponent(0.28)
+        glow.layer.borderColor = UIColor.white.withAlphaComponent(0.9).cgColor
+        glow.layer.borderWidth = 1.5
+        b.addSubview(glow)
+        b.addAction(UIAction { [weak b, weak glow] _ in
+            guard let b, let glow else { return }
+            glow.frame = b.bounds
+            glow.layer.cornerRadius = b.bounds.height / 2
+            if let iv = b.imageView { b.insertSubview(glow, belowSubview: iv) }
+            if let tl = b.titleLabel { b.insertSubview(glow, belowSubview: tl) }
+            UIView.animate(withDuration: 0.08, delay: 0,
                            options: [.allowUserInteraction, .beginFromCurrentState]) {
-                b.transform = CGAffineTransform(scaleX: 0.93, y: 0.93)
+                glow.alpha = 1
             }
         }, for: [.touchDown, .touchDragEnter])
-        b.addAction(UIAction { [weak b] _ in
-            guard let b else { return }
-            if !isConfigButton, let r = restingFg { setButtonForeground(b, r) }
-            UIView.animate(withDuration: 0.16, delay: 0,
+        b.addAction(UIAction { [weak glow] _ in
+            guard let glow else { return }
+            UIView.animate(withDuration: 0.12, delay: 0,
                            options: [.allowUserInteraction, .beginFromCurrentState]) {
-                b.transform = .identity
+                glow.alpha = 0
             }
         }, for: [.touchUpInside, .touchUpOutside, .touchCancel, .touchDragExit])
         // The house click, on the accepted tap only (a debounced tap was
@@ -269,14 +271,5 @@ public enum HMMenu {
     public static func stopCTAPulse(_ view: UIView) {
         view.layer.removeAnimation(forKey: ctaPulseKey)
         view.alpha = 1; view.transform = .identity
-    }
-}
-
-private extension UIColor {
-    /// Scale RGB toward black (alpha preserved) — the darken-on-press feedback.
-    func hmDarkened(by f: CGFloat) -> UIColor {
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        guard getRed(&r, green: &g, blue: &b, alpha: &a) else { return self }
-        return UIColor(red: r * f, green: g * f, blue: b * f, alpha: a)
     }
 }

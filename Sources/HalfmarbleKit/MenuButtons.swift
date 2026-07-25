@@ -178,13 +178,15 @@ public enum HMMenu {
             if !acceptMenuTap() { b.cancelTracking(with: nil) }
         }, for: .touchDown)
 
-        // ONE press look, the CTA's — scale + darkened glyphs, background
-        // steady — implemented per button anatomy (gerard: the pills TWITCHED;
-        // mutating configuration.baseForegroundColor re-renders the WHOLE
-        // configuration each press edge). CONFIG buttons (pills) darken their
-        // title/image SUBVIEWS directly — the configuration is never touched,
-        // so nothing re-renders. Plain buttons (the CTA) keep the classic
-        // in-place attributed-title darken.
+        // The press, third and FINAL iteration (gerard's clip, 2026-07-25):
+        // pills respond with SCALE ALONE. Every glyph treatment tried —
+        // configuration recolor (re-rendered the whole button: twitch), whole-
+        // button alpha, subview alpha (dimmed the label to near-nothing on the
+        // dark pill, then flashed back with a crossfade ghost as the release
+        // landed) — made the press LOUDER, not quieter. The dip-and-release
+        // motion is feedback enough; the glyphs never change. Plain buttons
+        // (the CTA) keep the classic in-place attributed-title darken — solid
+        // type on a light capsule wears it well, and it has never twitched.
         let isConfigButton = b.configuration != nil
         var restingFg: UIColor?          // per-button, shared by the down/up closures
         b.addAction(UIAction { [weak b] _ in
@@ -196,7 +198,6 @@ public enum HMMenu {
             UIView.animate(withDuration: 0.09, delay: 0,
                            options: [.allowUserInteraction, .beginFromCurrentState]) {
                 b.transform = CGAffineTransform(scaleX: 0.93, y: 0.93)
-                if isConfigButton { b.titleLabel?.alpha = 0.45; b.imageView?.alpha = 0.45 }
             }
         }, for: [.touchDown, .touchDragEnter])
         b.addAction(UIAction { [weak b] _ in
@@ -205,7 +206,6 @@ public enum HMMenu {
             UIView.animate(withDuration: 0.16, delay: 0,
                            options: [.allowUserInteraction, .beginFromCurrentState]) {
                 b.transform = .identity
-                if isConfigButton { b.titleLabel?.alpha = 1; b.imageView?.alpha = 1 }
             }
         }, for: [.touchUpInside, .touchUpOutside, .touchCancel, .touchDragExit])
         // The house click, on the accepted tap only (a debounced tap was

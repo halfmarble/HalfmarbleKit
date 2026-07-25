@@ -111,3 +111,14 @@ public extension UIImage {
         draw(in: CGRect(x: (box - w) / 2, y: (box - h) / 2, width: w, height: h))
     }
 }
+
+public extension UILabel {
+    /// Re-render the label's CURRENT text with the house black outline, using
+    /// its own font / textColor / textAlignment. Call again after any later
+    /// `.text` mutation — plain-text assignment drops the attributes.
+    func hmOutline(stroke: CGFloat? = nil) {
+        guard let t = text, !t.isEmpty else { return }
+        attributedText = Outline.string(t, font: font, color: textColor ?? .white,
+                                        alignment: textAlignment, stroke: stroke)
+    }
+}

@@ -172,13 +172,13 @@ public enum HMMenu {
             if !acceptMenuTap() { b.cancelTracking(with: nil) }
         }, for: .touchDown)
 
-        // TWO press looks, one per button anatomy (gerard: the pills TWITCHED —
+        // ONE press look, the CTA's — scale + darkened glyphs, background
+        // steady — implemented per button anatomy (gerard: the pills TWITCHED;
         // mutating configuration.baseForegroundColor re-renders the WHOLE
-        // configuration, background and outlined title included, every press
-        // edge). CONFIG buttons (pills) never touch their configuration:
-        // alpha + scale only, one animated block each way. Plain buttons (the
-        // CTA) keep the classic title darken — recoloring an attributed title
-        // in place doesn't re-render anything else.
+        // configuration each press edge). CONFIG buttons (pills) darken their
+        // title/image SUBVIEWS directly — the configuration is never touched,
+        // so nothing re-renders. Plain buttons (the CTA) keep the classic
+        // in-place attributed-title darken.
         let isConfigButton = b.configuration != nil
         var restingFg: UIColor?          // per-button, shared by the down/up closures
         b.addAction(UIAction { [weak b] _ in
@@ -190,7 +190,7 @@ public enum HMMenu {
             UIView.animate(withDuration: 0.09, delay: 0,
                            options: [.allowUserInteraction, .beginFromCurrentState]) {
                 b.transform = CGAffineTransform(scaleX: 0.93, y: 0.93)
-                if isConfigButton { b.alpha = 0.72 }
+                if isConfigButton { b.titleLabel?.alpha = 0.45; b.imageView?.alpha = 0.45 }
             }
         }, for: [.touchDown, .touchDragEnter])
         b.addAction(UIAction { [weak b] _ in
@@ -199,7 +199,7 @@ public enum HMMenu {
             UIView.animate(withDuration: 0.16, delay: 0,
                            options: [.allowUserInteraction, .beginFromCurrentState]) {
                 b.transform = .identity
-                if isConfigButton { b.alpha = 1 }
+                if isConfigButton { b.titleLabel?.alpha = 1; b.imageView?.alpha = 1 }
             }
         }, for: [.touchUpInside, .touchUpOutside, .touchCancel, .touchDragExit])
     }

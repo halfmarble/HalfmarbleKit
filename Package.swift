@@ -14,11 +14,15 @@ let package = Package(
     platforms: [.iOS(.v16)],
     products: [
         .library(name: "HalfmarbleKit", targets: ["HalfmarbleKit"]),
+        // Test-only harnesses (imports XCTest) — app TEST targets depend on
+        // this; app targets never do.
+        .library(name: "HalfmarbleTestKit", targets: ["HalfmarbleTestKit"]),
     ],
     targets: [
         .target(
             name: "HalfmarbleKit",
             resources: [.process("Resources")]   // the halfmarble ring mark
         ),
+        .target(name: "HalfmarbleTestKit"),
     ]
 )

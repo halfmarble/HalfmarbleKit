@@ -48,6 +48,10 @@ public enum HMMenu {
         return true
     }
 
+    /// Test seam: the debounce state is process-global (one thumb, one
+    /// cooldown), which would leak between unit tests — reset it explicitly.
+    public static func resetMenuTapDebounce() { lastMenuTapDown = -1 }
+
     // MARK: Builders
 
     /// The pill's SF Symbol, tinted white and given a black outline.

@@ -99,3 +99,15 @@ public extension UIImage {
         .withRenderingMode(.alwaysOriginal)
     }
 }
+
+public extension UIImage {
+    /// Draw centered in a square of side `box`, scaled DOWN if needed so it fits.
+    /// `outlined()` grows an image by its stroke width on every side, which can push a
+    /// glyph past a fixed icon slot (the 24×24 checkbox/lock canvas) and clip its edges.
+    /// Never scales up, so an already-small glyph keeps its authored size.
+    func drawFitted(in box: CGFloat) {
+        let s = min(1, min(box / size.width, box / size.height))
+        let w = size.width * s, h = size.height * s
+        draw(in: CGRect(x: (box - w) / 2, y: (box - h) / 2, width: w, height: h))
+    }
+}

@@ -12,6 +12,35 @@ import SwiftUI
 //  BrandLockupFramesKey) publishes its logo/name frames; this overlay
 //  animates onto those exact rects, then onDone hands off.
 
+/// THE HANDOFF — ViroFlick's rule, factored out so no host can get it wrong.
+///
+/// ViroFlick (UIKit, GameView+HomeScreen) builds its menu lockup at `alpha = 0`
+/// and only sets it to 1 inside the morph animation's completion block, in the
+/// same beat the splash view is removed. So the mark is never on screen twice,
+/// and never blinks out between the two. StringFusor had the same choreography
+/// but not that rule: its static lockup sat at the destination the whole time
+/// the animated one flew toward it.
+///
+/// It is an ObservableObject on purpose. Handing the host a plain `Bool` is not
+/// enough — StringFusor tried exactly that first and the landing view never
+/// re-rendered when it flipped (proven with a body-level print: the splash's
+/// onDone fired and the landing's body never ran again), so the mark stayed
+/// hidden forever. Observation invalidates whoever READ the flag, wherever it
+/// was read, which is the behaviour this needs.
+@MainActor
+public final class HMBrandHandoff: ObservableObject {
+    @Published public private(set) var revealed: Bool
+
+    public init(revealed: Bool = false) { self.revealed = revealed }
+
+    /// Reveal with no splash involved — the host arrived at this screen from
+    /// somewhere else (ViroFlick's `presentStartScreen(revealBrand: true)`).
+    public func reveal() { revealed = true }
+
+    /// For hosts with no cold-start splash at all: the lockup is simply up.
+    public static let alwaysVisible = HMBrandHandoff(revealed: true)
+}
+
 /// Global (screen-space) target rects for the two halves of the host lockup.
 public struct BrandLockupFrames: Equatable {
     public var logo: CGRect = .zero
@@ -33,7 +62,9 @@ public struct BrandLockupFramesKey: PreferenceKey {
 /// The small header/landing lockup — ring mark + wordmark — reporting its
 /// frames up through BrandLockupFramesKey so the splash can morph onto it.
 public struct HMBrandLockup: View {
-    public init() {}
+    @ObservedObject private var handoff: HMBrandHandoff
+
+    public init(handoff: HMBrandHandoff = .alwaysVisible) { self.handoff = handoff }
 
     public var body: some View {
         HStack(spacing: HMBrand.lockupGap - 3) {   // visual gap incl. the mark's padding
@@ -53,15 +84,23 @@ public struct HMBrandLockup: View {
                                            value: BrandLockupFrames(name: g.frame(in: .global)))
                 })
         }
+        // OPACITY, never `if` or .hidden(): hidden or not, the lockup has to stay
+        // laid out and keep publishing BrandLockupFramesKey, because those rects
+        // are what the splash morphs onto. Remove it and the splash has no target
+        // and falls back to a plain dissolve.
+        .opacity(handoff.revealed ? 1 : 0)
     }
 }
 
 public struct HMBrandSplash: View {
     let targets: BrandLockupFrames
+    let handoff: HMBrandHandoff?
     let onDone: () -> Void
 
-    public init(targets: BrandLockupFrames, onDone: @escaping () -> Void) {
-        self.targets = targets; self.onDone = onDone
+    public init(targets: BrandLockupFrames,
+                handoff: HMBrandHandoff? = nil,
+                onDone: @escaping () -> Void) {
+        self.targets = targets; self.handoff = handoff; self.onDone = onDone
     }
 
     @State private var lockupIn = false
@@ -103,7 +142,13 @@ public struct HMBrandSplash: View {
             // completes inside this beat), then morph.
             DispatchQueue.main.asyncAfter(deadline: .now() + HMBrand.splashHold) {
                 withAnimation(.easeInOut(duration: HMBrand.splashMorph)) { docked = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + HMBrand.splashMorph + 0.04) { onDone() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + HMBrand.splashMorph + 0.04) {
+                    // Reveal the host's static lockup FIRST, then leave — one beat,
+                    // the way ViroFlick's completion block sets alpha 1 and then
+                    // removes the splash view.
+                    handoff?.reveal()
+                    onDone()
+                }
             }
         }
     }

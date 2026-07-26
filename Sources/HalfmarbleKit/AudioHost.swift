@@ -479,6 +479,13 @@ public final class HMAudioHost {
 
     #if DEBUG
     public func t_channelPlaying(_ i: Int) -> Bool { musicNodes[i].isPlaying }
+    /// The channel's CURRENT fader volume. Prefer this over t_channelPlaying when
+    /// the question is "was this audible?": scheduleAndPlay play()s every node at
+    /// volume 0 and lets the fader pause the inactive ones a tick later, so
+    /// `isPlaying` is transiently true for EVERY channel at launch regardless of
+    /// mode or hold — a test built on it is inherently racy. Volume has no such
+    /// transient: a held or out-of-mode channel never leaves 0.
+    public func t_channelVolume(_ i: Int) -> Float { musicNodes[i].volume }
     public var t_engineRunning: Bool { engine.isRunning }
     public func t_stopEngine() { engine.stop() }   // what the system does when a call arrives
     /// Post the real configuration-change notification against the real engine,

@@ -249,6 +249,17 @@ public final class HMAudioHost {
     /// it has faded to silence: a playing node keeps the audio render thread
     /// pulling and resampling its loop forever, even at volume 0. Resumes
     /// mid-loop on the next fade-in — it's ambient, the seam is inaudible.
+    ///
+    /// ACCEPTED TOCTOU (2026-07-26 audit; inherited from both ancestors): the
+    /// engine can stop between the `engine.isRunning` check and `play()` — an
+    /// interruption landing inside a 20 Hz tick's microsecond window — and
+    /// `play()` on a stopped engine raises. Kept as-is deliberately: the
+    /// window is vanishingly small, both ancestors shipped it for weeks, and
+    /// exception-guarding or hopping play() to main costs more than the risk.
+    /// Do not "simplify" the isRunning guard away — it is what makes the
+    /// window microseconds instead of the whole interruption.
+    /// Pinned app-side (fade→pause→resume + recovery): ViroFlick's
+    /// GameEnergyTests and StringFusor's GameAudioHostTests — the twin suites.
     private func fade(_ node: AVAudioPlayerNode, toward target: Float, engine: AVAudioEngine) {
         if target > 0, !node.isPlaying, engine.isRunning { node.play() }
         node.volume += (target - node.volume) * 0.12

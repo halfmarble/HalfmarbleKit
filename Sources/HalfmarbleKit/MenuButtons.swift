@@ -136,7 +136,7 @@ public enum HMMenu {
 
     /// The "new here?  start with  [symbol] LABEL" coaching hint — ViroFlick's
     /// makeTextbookHint, generalized: dim Medium-12 text with the SF Symbol
-    /// outlined, tinted the same dim colour, and centered on the cap height.
+    /// outlined, tinted the same dim color, and centered on the cap height.
     public static func hintString(_ prefix: String, symbol: String, suffix: String,
                                   fontSize: CGFloat = 12,
                                   color: UIColor = UIColor.white.withAlphaComponent(0.4))
@@ -215,7 +215,7 @@ public enum HMMenu {
         b.addAction(UIAction { _ in onTap?() }, for: .touchUpInside)
     }
 
-    /// The button's current title/foreground colour, whichever styling API it
+    /// The button's current title/foreground color, whichever styling API it
     /// uses (`Configuration` pills vs. plain `.system` CTAs).
     public static func buttonForeground(_ b: UIButton) -> UIColor? {
         b.configuration?.baseForegroundColor ?? b.titleColor(for: .normal)

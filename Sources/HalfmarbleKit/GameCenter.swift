@@ -22,8 +22,22 @@ public struct HMPendingScore: Codable, Equatable {
     public let id: String
     public let score: Int
     public let date: Date
-    public init(id: String, score: Int, date: Date) {
+    /// Day-scoped scores (a RECURRING daily board) are only meaningful on the
+    /// UTC day they were earned — Game Center's recurrence buckets by
+    /// SUBMISSION time, so flushing Monday's queued score on Tuesday would
+    /// rank a run the player never played that day (the 2026-07-28 finding).
+    /// This is that day (yyyymmdd); nil = never expires. Optional so
+    /// pre-existing persisted queues still decode (missing keys → nil).
+    public let utcDayOnly: Int?
+    /// AUTHENTICATED submits that failed for this item so far (nil = 0). A
+    /// board that doesn't exist in ASC fails every flush forever, and at the
+    /// cap those poisoned entries evicted REAL scores — recordFailedAttempt
+    /// abandons an item once it exhausts maxAttempts.
+    public var attempts: Int?
+    public init(id: String, score: Int, date: Date,
+                utcDayOnly: Int? = nil, attempts: Int? = nil) {
         self.id = id; self.score = score; self.date = date
+        self.utcDayOnly = utcDayOnly; self.attempts = attempts
     }
 }
 
@@ -60,13 +74,49 @@ public struct HMPendingScoreQueue: Equatable {
         if items.count > Self.cap { items.removeFirst(items.count - Self.cap) }   // drop oldest
     }
 
+    /// The SUBMISSION identity: everything but the bookkeeping (`attempts`) —
+    /// a caller holding an item from an earlier load must still match it after
+    /// a failure bumped its counter in the persisted queue.
+    private func index(matching s: HMPendingScore) -> Int? {
+        items.firstIndex { $0.id == s.id && $0.score == s.score
+            && $0.date == s.date && $0.utcDayOnly == s.utcDayOnly }
+    }
+
     /// Remove ONE occurrence of `s` (the flush removes an item only after its
     /// submit succeeded — see HMGameCenter.flushQueue).
     public mutating func remove(_ s: HMPendingScore) {
-        if let i = items.firstIndex(of: s) { items.remove(at: i) }
+        if let i = index(matching: s) { items.remove(at: i) }
     }
 
     public mutating func clear() { items.removeAll() }
+
+    /// Authenticated-submit failures an item survives before it is abandoned.
+    /// Eight flushes is at least eight app foregroundings/auth events — a
+    /// transient outage clears long before that; only a dead board (an ID not
+    /// created in ASC) keeps failing, and it must not retry forever.
+    public static let maxAttempts = 8
+
+    /// Drop day-scoped items whose UTC day has passed — submitted late, a
+    /// recurring board would rank them on the WRONG day. Returns the dropped
+    /// items so the host can log them.
+    @discardableResult
+    public mutating func pruneExpired(todayUTCDay: Int) -> [HMPendingScore] {
+        let expired = items.filter { ($0.utcDayOnly ?? todayUTCDay) != todayUTCDay }
+        items.removeAll { ($0.utcDayOnly ?? todayUTCDay) != todayUTCDay }
+        return expired
+    }
+
+    /// Record one failed AUTHENTICATED submit for `s`; abandons the item once
+    /// it exhausts maxAttempts (returns true then), so a poisoned entry can't
+    /// retry forever and crowd real scores out of the capped queue.
+    @discardableResult
+    public mutating func recordFailedAttempt(of s: HMPendingScore) -> Bool {
+        guard let i = index(matching: s) else { return false }
+        let n = (items[i].attempts ?? 0) + 1
+        if n >= Self.maxAttempts { items.remove(at: i); return true }
+        items[i].attempts = n
+        return false
+    }
 }
 
 // MARK: - Game Center manager (GameKit, main thread)
@@ -122,8 +172,13 @@ public final class HMGameCenter: NSObject, GKGameCenterControllerDelegate {
     /// Submit a score. Queued if unauthenticated; queued again if the async
     /// submit throws (e.g. the board isn't defined in ASC yet). On success,
     /// drains the pending queue.
-    public func submit(score: Int, leaderboardID: String) {
-        guard isAuthenticated else { enqueue(score, leaderboardID); return }
+    ///
+    /// `utcDayOnly`: pass true for a RECURRING daily board — a queued score is
+    /// then only ever flushed on the UTC day it was earned (Game Center's
+    /// recurrence buckets by SUBMISSION time, so a late flush would rank the
+    /// score on the wrong day's board); after that day it is silently dropped.
+    public func submit(score: Int, leaderboardID: String, utcDayOnly: Bool = false) {
+        guard isAuthenticated else { enqueue(score, leaderboardID, utcDayOnly); return }
         Task {
             do {
                 try await GKLeaderboard.submitScore(score, context: 0,
@@ -131,9 +186,19 @@ public final class HMGameCenter: NSObject, GKGameCenterControllerDelegate {
                                                     leaderboardIDs: [leaderboardID])
                 await MainActor.run { self.flushQueue() }
             } catch {
-                await MainActor.run { self.enqueue(score, leaderboardID) }
+                await MainActor.run { self.enqueue(score, leaderboardID, utcDayOnly) }
             }
         }
+    }
+
+    /// The UTC calendar day of `date` as yyyymmdd — the recurrence bucket a
+    /// daily board's day-scoped scores expire with (UTC, matching the one
+    /// global moment the daily seed rolls at).
+    public static func utcDay(of date: Date = Date()) -> Int {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        let c = cal.dateComponents([.year, .month, .day], from: date)
+        return c.year! * 10_000 + c.month! * 100 + c.day!
     }
 
     /// Present the native leaderboards UI — a specific board, or the board
@@ -166,14 +231,25 @@ public final class HMGameCenter: NSObject, GKGameCenterControllerDelegate {
 
     // MARK: - Pending queue
 
-    private func enqueue(_ score: Int, _ id: String) {
+    private func enqueue(_ score: Int, _ id: String, _ utcDayOnly: Bool) {
         var q = HMPendingScoreQueue.load(from: defaults)
-        q.enqueue(HMPendingScore(id: id, score: score, date: Date()))
+        q.enqueue(HMPendingScore(id: id, score: score, date: Date(),
+                                 utcDayOnly: utcDayOnly ? Self.utcDay() : nil))
         q.save(to: defaults)
     }
 
     private func flushQueue() {
-        let q = HMPendingScoreQueue.load(from: defaults)
+        var pre = HMPendingScoreQueue.load(from: defaults)
+        // Day-scoped scores from a PAST UTC day are dropped, never submitted:
+        // the recurring board would rank them on the wrong day.
+        let expired = pre.pruneExpired(todayUTCDay: Self.utcDay())
+        if !expired.isEmpty {
+            pre.save(to: defaults)
+            #if DEBUG
+            StartupProf.mark("gc: dropped \(expired.count) day-scoped score(s) from a past UTC day")
+            #endif
+        }
+        let q = pre
         guard isAuthenticated, !q.items.isEmpty else { return }
         // Items stay PERSISTED until their submit succeeds — clearing the queue
         // up-front meant an app kill mid-flush silently dropped every score still
@@ -184,6 +260,7 @@ public final class HMGameCenter: NSObject, GKGameCenterControllerDelegate {
         // flush calls can't stampede 50 concurrent submits.
         Task {
             var sent: [HMPendingScore] = []
+            var failed: [HMPendingScore] = []
             for it in q.items {
                 do {
                     try await GKLeaderboard.submitScore(it.score, context: 0,
@@ -191,14 +268,24 @@ public final class HMGameCenter: NSObject, GKGameCenterControllerDelegate {
                                                         leaderboardIDs: [it.id])
                     sent.append(it)
                 } catch {
-                    // Still persisted — it simply retries on the next flush.
+                    failed.append(it)   // persisted; counted below
                 }
             }
-            guard !sent.isEmpty else { return }
-            let submitted = sent   // immutable capture — a captured VAR in a Sendable closure is a Swift 6 error
+            guard !sent.isEmpty || !failed.isEmpty else { return }
+            let submitted = sent   // immutable captures — a captured VAR in a Sendable closure is a Swift 6 error
+            let misses = failed
             await MainActor.run {
                 var q2 = HMPendingScoreQueue.load(from: self.defaults)
                 for it in submitted { q2.remove(it) }
+                // A submit that fails while AUTHENTICATED is most likely a dead
+                // board (an ID not created in ASC): count the failure and abandon
+                // the item after maxAttempts, so poisoned entries can't retry
+                // forever and crowd real scores out of the capped queue.
+                for it in misses where q2.recordFailedAttempt(of: it) {
+                    #if DEBUG
+                    StartupProf.mark("gc: abandoned \(it.id) score \(it.score) after \(HMPendingScoreQueue.maxAttempts) failed submits")
+                    #endif
+                }
                 q2.save(to: self.defaults)
             }
         }

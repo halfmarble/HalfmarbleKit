@@ -109,8 +109,16 @@ public final class HMAudioHost {
     private var auxGain: Float = 0
     private var _musicEnabled: Bool
     private var _sfxEnabled: Bool
-    /// Fader-thread-only (no lock — only the fader touches it).
+    /// Fader-thread-only (no lock — only the fader touches it): seconds of
+    /// AUDIBLE time accumulated for the startup ramps, capped at `rampCap`.
     private var rampProgress: Double = 0
+    /// The accumulator's ceiling: the LONGEST channel ramp, so every channel's
+    /// smoothstep can reach 1. The old cap of 1 s could never complete a 10 s
+    /// ramp — x = min(1, 1/10) pinned the gain at smoothstep(0.1) = 0.028,
+    /// ~−31 dB, forever (the 2026-07-28 finding: StringFusor's solar-wind bed
+    /// was inaudible for the whole session while its isPlaying-based test
+    /// stayed green). Pinned by HalfmarbleKitTests.
+    private let rampCap: Double
 
     public var musicEnabled: Bool { stateLock.withLock { _musicEnabled } }
     public var sfxEnabled: Bool { stateLock.withLock { _sfxEnabled } }
@@ -130,6 +138,7 @@ public final class HMAudioHost {
         self.sampleRate = sampleRate
         self.musicFormat = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2)!
         self.channels = channels
+        self.rampCap = Self.longestRamp(of: channels)
         self.sfxRender = sfxRender
         self.onEngineReset = onEngineReset
         self.debugMark = debugMark
@@ -228,21 +237,40 @@ public final class HMAudioHost {
                 self.debugMark?("audio: WATCHDOG — engine down, restarting")
                 DispatchQueue.main.async { self.restartEngineIfNeeded() }
             }
-            if audible { self.rampProgress = min(1, self.rampProgress + 0.05) }   // seconds of audible time
+            // Seconds of audible time, capped at the LONGEST channel ramp (a
+            // cap of 1 s could never complete a 10 s ramp — see rampCap).
+            if audible { self.rampProgress = min(self.rampCap, self.rampProgress + 0.05) }
             for (i, ch) in self.channels.enumerated() {
                 guard i < nodes.count else { break }
                 let active = audible && (ch.activeInMode == nil || ch.activeInMode == mode)
                 var target: Float = active ? ch.baseVolume * duck : 0
                 if ch.auxGainDriven { target *= aux }
                 if ch.startupRampSecs > 0 {
-                    let x = Float(min(1, self.rampProgress / ch.startupRampSecs))
-                    target *= x * x * (3 - 2 * x)                 // smoothstep
+                    target *= Self.startupRampGain(audibleSecs: self.rampProgress,
+                                                   rampSecs: ch.startupRampSecs)
                 }
                 self.fade(nodes[i], toward: target, engine: engine)
             }
         }
         t.resume()
         musicFader = t
+    }
+
+    /// The startup-ramp gain: smoothstep of audible-time over the channel's
+    /// ramp length. Pure and public so the kit's tests pin the curve — and its
+    /// interplay with `longestRamp` (the accumulator's cap must reach every
+    /// channel's full ramp; the 1 s cap that couldn't was the 2026-07-28
+    /// inaudible-solar-wind finding) — without running the 20 Hz fader.
+    public static func startupRampGain(audibleSecs: Double, rampSecs: Double) -> Float {
+        guard rampSecs > 0 else { return 1 }
+        let x = Float(min(1, audibleSecs / rampSecs))
+        return x * x * (3 - 2 * x)                                // smoothstep
+    }
+
+    /// What `rampProgress` must be allowed to reach: the longest channel ramp
+    /// (never below 1 s, the old cap, so a no-ramp host keeps its old shape).
+    public static func longestRamp(of channels: [HMMusicChannel]) -> Double {
+        max(1, channels.map(\.startupRampSecs).max() ?? 0)
     }
 
     /// Ease one music player toward its target volume — and PAUSE the node once

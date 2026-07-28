@@ -24,5 +24,9 @@ let package = Package(
             resources: [.process("Resources")]   // the halfmarble ring mark
         ),
         .target(name: "HalfmarbleTestKit"),
+        // The kit's OWN contracts (run with an iOS-simulator destination —
+        // the kit is iOS-only, so `swift test` on macOS cannot build it):
+        //   xcodebuild test -scheme HalfmarbleKit -destination 'platform=iOS Simulator,name=…'
+        .testTarget(name: "HalfmarbleKitTests", dependencies: ["HalfmarbleKit"]),
     ]
 )

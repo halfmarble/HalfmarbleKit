@@ -18,6 +18,10 @@ public enum HMBrand {
         "5% of software net profits pledged:",
         "2.5% to Michael J. Fox Foundation (MJFF)",
         "2.5% to Public Health Collaboration (PHC UK)",
+        // The Team Fox terms require the third-party relationship to be
+        // explicit on all promotional surfaces (agreement wording pass,
+        // 2026-07-29); gerard asked for it in-app the same day.
+        "halfmarble is an independent Team Fox third-party fundraiser.",
     ]
 
     /// The ring mark, template-rendered — tint it (white on the dark grounds).

@@ -103,4 +103,30 @@ final class KitContractTests: XCTestCase {
         // 2026-07-28 12:00:00 UTC.
         XCTAssertEqual(HMGameCenter.utcDay(of: Date(timeIntervalSince1970: 1_785_240_000)), 2026_07_28)
     }
+
+    // MARK: - The store unlock (2026-07-29 extraction)
+
+    /// Only the SYNCHRONOUS seed is deterministically testable without a
+    /// StoreKit test configuration: assertions run on the main actor straight
+    /// after init, before the async reconciliation tasks can have executed —
+    /// the entitlement paths themselves are exercised by the apps' sandbox
+    /// builds, not unit tests.
+    @MainActor
+    func testStoreUnlockSeedsFromTheDefaultsCache() {
+        let d = freshDefaults("hm.kit.tests.store")
+        let key = "test.unlocked"
+        XCTAssertFalse(HMStoreUnlock(productID: "t.p", defaultsKey: key,
+                                     defaults: d).unlocked,
+                       "no cache, no unlock — the warm start is honest")
+        d.set(true, forKey: key)
+        XCTAssertTrue(HMStoreUnlock(productID: "t.p", defaultsKey: key,
+                                    defaults: d).unlocked,
+                      "a cached entitlement unlocks the first frame")
+        #if DEBUG
+        d.set(false, forKey: key)
+        XCTAssertTrue(HMStoreUnlock(productID: "t.p", defaultsKey: key,
+                                    defaults: d, devPin: { true }).unlocked,
+                      "the dev pin forces the unlock with no receipt at all")
+        #endif
+    }
 }

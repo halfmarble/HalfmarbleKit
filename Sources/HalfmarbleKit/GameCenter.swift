@@ -229,6 +229,40 @@ public final class HMGameCenter: NSObject, GKGameCenterControllerDelegate {
         vc.dismiss(animated: true)
     }
 
+    // MARK: - Raw entries (custom leaderboard UIs)
+
+    /// One row of a leaderboard, app-neutral. `score` is the RAW submitted
+    /// Int — an app that packs multiple axes into one value (StringFusor's
+    /// daily exam race) decodes it in its own view; the kit never interprets.
+    public struct HMLeaderboardEntry: Sendable {
+        public let rank: Int
+        public let displayName: String
+        public let score: Int
+        public let isLocalPlayer: Bool
+    }
+
+    /// Load a board's top entries for a CUSTOM in-app view — the escape hatch
+    /// for boards whose packed scores the native GC UI would render as noise.
+    /// For a recurring board, GameKit resolves the CURRENT occurrence (today's
+    /// race, not history). Unauthenticated or failed loads return [] — a
+    /// custom view shows its own empty state, never an error dialog.
+    public func loadEntries(leaderboardID: String, count: Int = 25)
+        async -> [HMLeaderboardEntry] {
+        guard isAuthenticated else { return [] }
+        guard let board = try? await GKLeaderboard.loadLeaderboards(IDs: [leaderboardID]).first,
+              let result = try? await board.loadEntries(
+                  for: .global, timeScope: .allTime,
+                  range: NSRange(location: 1, length: max(1, min(count, 100))))
+        else { return [] }
+        let localID = GKLocalPlayer.local.gamePlayerID
+        return result.1.map { e in
+            HMLeaderboardEntry(rank: e.rank,
+                               displayName: e.player.displayName,
+                               score: e.score,
+                               isLocalPlayer: e.player.gamePlayerID == localID)
+        }
+    }
+
     // MARK: - Pending queue
 
     private func enqueue(_ score: Int, _ id: String, _ utcDayOnly: Bool) {

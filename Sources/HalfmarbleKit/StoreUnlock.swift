@@ -22,9 +22,12 @@ import StoreKit
 //  ViroFlick's case locks), and its purchase UI.
 
 /// What a purchase attempt resolved to — pending is Ask-to-Buy and friends,
-/// which land later through the updates listener.
+/// which land later through the updates listener; busy means another
+/// purchase/restore already holds the store (the tap never reached StoreKit —
+/// NOT a failure, and hosts should render it as nothing or "one moment",
+/// never as an error).
 public enum HMPurchaseOutcome {
-    case success, cancelled, pending, failed, unavailable
+    case success, cancelled, pending, failed, unavailable, busy
 }
 
 /// One non-consumable product's entitlement, mirrored into UserDefaults.
@@ -79,10 +82,16 @@ public final class HMStoreUnlock {
         if devPin() { unlocked = true }
         #endif
         // Listen BEFORE the first await so no transaction slips past unhandled:
-        // Ask-to-Buy approvals, refunds, purchases from other devices.
+        // Ask-to-Buy approvals, refunds, purchases from other devices. OUR
+        // product only — finishing another product's transaction here would
+        // silently consume it before its own handler ever saw it (harmless
+        // with one product per app today, a booby trap the day there are two).
+        let watched = productID
         updatesTask = Task { [weak self] in
             for await update in Transaction.updates {
-                if case .verified(let t) = update { await t.finish() }
+                guard case .verified(let t) = update,
+                      t.productID == watched else { continue }
+                await t.finish()
                 await self?.reconcile()
             }
         }
@@ -104,7 +113,7 @@ public final class HMStoreUnlock {
     /// Buy the unlock. On a verified success the entitlement is reflected
     /// before returning, so the caller can immediately re-present unlocked UI.
     public func purchase() async -> HMPurchaseOutcome {
-        guard !busy else { return .failed }
+        guard !busy else { return .busy }   // the tap never reached StoreKit
         busy = true
         defer { busy = false }
         if product == nil { await refresh() }         // lazy retry if launch missed
@@ -141,10 +150,20 @@ public final class HMStoreUnlock {
     /// refund clears the entitlement (or stamps revocationDate), and the
     /// mirror must follow it back to false or a refunded install stays
     /// unlocked forever off the stale cache (StringFusor's pre-kit bug).
+    /// Monotonic pass counter: reconcile suspends inside the entitlement
+    /// stream, so two passes can interleave (a sheet-refresh scan vs the
+    /// purchase's own), and last-WRITER-wins used to let a STALE pre-purchase
+    /// scan finish after the purchase and re-lock a just-paid user —
+    /// persisting `false` into the mirror until the next refresh. Only the
+    /// newest pass may write; an obsolete one discards its answer.
+    private var reconcileGen = 0
+
     private func reconcile() async {
         #if DEBUG
         if devPin() { setUnlocked(true); return }
         #endif
+        reconcileGen += 1
+        let gen = reconcileGen
         var entitled = false
         for await result in Transaction.currentEntitlements {
             if case .verified(let t) = result,
@@ -153,6 +172,7 @@ public final class HMStoreUnlock {
                 entitled = true
             }
         }
+        guard gen == reconcileGen else { return }   // a newer pass owns the truth
         #if DEBUG
         StartupProf.mark("store: entitlements resolved (\(productID) entitled=\(entitled))")
         #endif

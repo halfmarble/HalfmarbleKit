@@ -137,9 +137,12 @@ public struct HMBrandSplash: View {
         }
         .ignoresSafeArea()
         .onAppear {
-            withAnimation(.easeOut(duration: 0.5).delay(0.05)) { lockupIn = true }
+            withAnimation(.easeOut(duration: HMBrand.splashFadeIn)
+                            .delay(HMBrand.splashFadeDelay)) { lockupIn = true }
             // Hold the lockup as the loading screen (the host's warm-up
-            // completes inside this beat), then morph.
+            // completes inside this beat), then morph. splashHold is that fade
+            // PLUS splashMinHold, so the lockup is fully up and STILL for a
+            // whole second before it travels.
             DispatchQueue.main.asyncAfter(deadline: .now() + HMBrand.splashHold) {
                 withAnimation(.easeInOut(duration: HMBrand.splashMorph)) { docked = true }
                 DispatchQueue.main.asyncAfter(deadline: .now() + HMBrand.splashMorph + 0.04) {

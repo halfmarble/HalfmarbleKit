@@ -47,8 +47,20 @@ public enum HMBrand {
     public static let lockupGap: CGFloat = 8
     /// The cold-start cover behind the big lockup.
     public static let coverColor = UIColor(red: 0.03, green: 0.04, blue: 0.07, alpha: 1)
-    /// Hold the lockup as the loading screen, then morph into the header.
-    public static let splashHold: TimeInterval = 1.4
+    /// The fade that brings the big lockup up on the cover.
+    public static let splashFadeDelay: TimeInterval = 0.05
+    public static let splashFadeIn: TimeInterval = 0.5
+    /// THE STILL BEAT: once the lockup is fully up it sits there, motionless,
+    /// for at least this long before the morph starts (gerard, 2026-08-01 — the
+    /// beat was 0.85s here and 0.5s in ViroFlick). A shorter one makes the
+    /// morph read as a jarring snap: the mark has to LAND before it moves, or
+    /// the eye never resolves it as a brand at all. Both choreographies honour
+    /// it — the SwiftUI splash via `splashHold`, ViroFlick's UIKit one as the
+    /// `notBefore` on its warm-up gate.
+    public static let splashMinHold: TimeInterval = 1.0
+    /// Appearance → morph, for the SwiftUI splash. DERIVED, never a literal:
+    /// hand-tuning this is exactly what silently ate the still beat above.
+    public static let splashHold: TimeInterval = splashFadeDelay + splashFadeIn + splashMinHold
     public static let splashMorph: TimeInterval = 0.62
 }
 

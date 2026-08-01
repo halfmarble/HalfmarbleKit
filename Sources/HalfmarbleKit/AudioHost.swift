@@ -1,5 +1,9 @@
 import AVFoundation
 import AudioToolbox
+// UnsafeMutableAudioBufferListPointer (the source node's render callback) is a
+// CoreAudio overlay type: iOS re-exports it through AVFoundation, Mac Catalyst
+// does not.
+import CoreAudio
 import os
 #if canImport(UIKit)
 import UIKit

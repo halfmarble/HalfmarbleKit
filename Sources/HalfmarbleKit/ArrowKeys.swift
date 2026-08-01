@@ -1,7 +1,8 @@
 import SwiftUI
 
-//  The arrow-cluster keyboard grammar for halfmarble games on macOS
-//  ("Designed for iPad" on Apple silicon — ProcessInfo.isiOSAppOnMac).
+//  The arrow-cluster keyboard grammar for halfmarble games on macOS — BOTH
+//  ways a halfmarble game reaches a Mac: "Designed for iPad" on Apple silicon,
+//  and (since 2026-08-01) a real Mac CATALYST build. See `isMac` below.
 //
 //  The hand never leaves the arrows; modifiers are verb layers
 //  (gerard, 2026-08-01, designed for StringFusor):
@@ -68,7 +69,13 @@ public struct HMArrowKeys: ViewModifier {
     @FocusState private var focused: Bool
 
     /// One check at launch: this never changes mid-run.
-    private static let isMac = ProcessInfo.processInfo.isiOSAppOnMac
+    ///
+    /// `isMacCatalystApp` is the WIDER of the two flags — true for a real
+    /// Catalyst build AND for an iOS app running on Apple silicon — so it
+    /// alone answers "is there a Mac keyboard in front of this window?".
+    /// `isiOSAppOnMac` would miss the Catalyst build entirely, which is how
+    /// the Mac port shipped its first build with dead arrow keys.
+    private static let isMac = ProcessInfo.processInfo.isMacCatalystApp
 
     public func body(content: Content) -> some View {
         if Self.isMac || !macOnly {

@@ -35,25 +35,48 @@ public struct HMArrowKeyBindings {
     public var holdEnd: () -> Void
     public var up: () -> Void
     public var down: () -> Void
+    /// ⇧ + ← / →  (dir -1 / +1)
     public var shiftLayer: ((_ dir: Int) -> Void)?
+    /// ⇧ + ↑ / ↓  (dir -1 = up, +1 = down). Nil leaves ⇧+↑/↓ falling through
+    /// to the bare `up`/`down` verbs, which is the pre-2026-08-02 behaviour.
+    public var shiftVertical: ((_ dir: Int) -> Void)?
+    /// ⌥ + ← / →  (dir -1 / +1). An app that binds only one direction simply
+    /// ignores the other — StringFusor's ⌥+← is undo and ⌥+→ does nothing.
     public var optionLayer: ((_ dir: Int) -> Void)?
+    /// ⌥ + ↑ / ↓  (dir -1 = up, +1 = down).
+    public var optionVertical: ((_ dir: Int) -> Void)?
+    /// ⌘ + ANY arrow — one safe verb on all four, canonically undo. Nil
+    /// disables the arrow chords without disabling ⌘Z (see `commandZ`).
     public var command: (() -> Void)?
+    /// ⌘Z specifically. Nil falls back to `command`, so existing callers keep
+    /// the Mac idiom for free; set it to keep ⌘Z when `command` is nil.
+    public var commandZ: (() -> Void)?
     /// Unmodified Z / X trigger `optionLayer(-1)` / `optionLayer(1)` — the
     /// classic falling-piece rotate keys. On by default.
     public var zxAliases: Bool
+    /// Where unmodified Z / X route when `zxAliases` is on. Nil uses
+    /// `optionLayer` (the original behaviour); set it when the app has moved
+    /// rotate off ⌥, as StringFusor did on 2026-08-02.
+    public var zxLayer: ((_ dir: Int) -> Void)?
 
     public init(holdBegin: @escaping (_ dir: Int) -> Void,
                 holdEnd: @escaping () -> Void,
                 up: @escaping () -> Void,
                 down: @escaping () -> Void,
                 shiftLayer: ((_ dir: Int) -> Void)? = nil,
+                shiftVertical: ((_ dir: Int) -> Void)? = nil,
                 optionLayer: ((_ dir: Int) -> Void)? = nil,
+                optionVertical: ((_ dir: Int) -> Void)? = nil,
                 command: (() -> Void)? = nil,
-                zxAliases: Bool = true) {
+                commandZ: (() -> Void)? = nil,
+                zxAliases: Bool = true,
+                zxLayer: ((_ dir: Int) -> Void)? = nil) {
         self.holdBegin = holdBegin; self.holdEnd = holdEnd
         self.up = up; self.down = down
-        self.shiftLayer = shiftLayer; self.optionLayer = optionLayer
-        self.command = command; self.zxAliases = zxAliases
+        self.shiftLayer = shiftLayer; self.shiftVertical = shiftVertical
+        self.optionLayer = optionLayer; self.optionVertical = optionVertical
+        self.command = command; self.commandZ = commandZ
+        self.zxAliases = zxAliases; self.zxLayer = zxLayer
     }
 }
 
@@ -118,24 +141,33 @@ public struct HMArrowKeys: ViewModifier {
             default:    break            // .repeat — the hold walks on its own
             }
             return .handled
-        case .upArrow:
-            if press.phase == .down { bindings.up() }
-            return .handled
-        case .downArrow:
-            if press.phase == .down { bindings.down() }
+        case .upArrow, .downArrow:
+            let dir = press.key == .downArrow ? 1 : -1
+            // The vertical layers are checked BEFORE the bare verbs, so a
+            // modified ↑/↓ never also fires flip/drop. Nil layers fall
+            // through to the bare verbs (the original behaviour).
+            if press.modifiers.contains(.shift), let shiftV = bindings.shiftVertical {
+                if press.phase == .down { shiftV(dir) }
+                return .handled
+            }
+            if press.modifiers.contains(.option), let optV = bindings.optionVertical {
+                if press.phase == .down { optV(dir) }
+                return .handled
+            }
+            if press.phase == .down { press.key == .upArrow ? bindings.up() : bindings.down() }
             return .handled
         default:
             break
         }
         if press.phase == .down {
             if press.modifiers.contains(.command), press.characters.lowercased() == "z",
-               let command = bindings.command {
-                command(); return .handled
+               let undo = bindings.commandZ ?? bindings.command {
+                undo(); return .handled
             }
-            if bindings.zxAliases, let opt = bindings.optionLayer {
+            if bindings.zxAliases, let rot = bindings.zxLayer ?? bindings.optionLayer {
                 switch press.characters.lowercased() {
-                case "z": opt(-1); return .handled
-                case "x": opt(1);  return .handled
+                case "z": rot(-1); return .handled
+                case "x": rot(1);  return .handled
                 default:  break
                 }
             }

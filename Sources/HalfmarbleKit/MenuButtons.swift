@@ -211,8 +211,15 @@ public enum HMMenu {
             }
         }, for: [.touchUpInside, .touchUpOutside, .touchCancel, .touchDragExit])
         // The house click, on the accepted tap only (a debounced tap was
-        // cancelTracking'd on touch-down and never reaches touchUpInside).
-        b.addAction(UIAction { _ in onTap?() }, for: .touchUpInside)
+        // cancelTracking'd on touch-down, so no primary action is triggered).
+        //
+        // .primaryActionTriggered, NOT .touchUpInside: a tvOS remote SELECT
+        // fires the former and never the latter, so on Apple TV every kit
+        // button was focusable and DEAD — you could highlight ENTER REACTOR
+        // and press it forever. On iOS the two fire at the same moment, and
+        // the tremor debounce still gates both (cancelTracking suppresses the
+        // primary action as well), so touch behaviour is unchanged.
+        b.addAction(UIAction { _ in onTap?() }, for: .primaryActionTriggered)
     }
 
     /// The button's current title/foreground color, whichever styling API it

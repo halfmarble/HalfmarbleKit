@@ -26,7 +26,7 @@ public struct HMActionButton: UIViewRepresentable {
     public func makeUIView(context: Context) -> UIButton {
         let b = HMMenu.makeActionButton(title, fontSize: fontSize,
                                         height: HMMenu.ctaButtonSize.height, bgAlpha: bgAlpha)
-        b.addTarget(context.coordinator, action: #selector(Coordinator.tapped), for: .touchUpInside)
+        b.addTarget(context.coordinator, action: #selector(Coordinator.tapped), for: .primaryActionTriggered)
         if pulses {
             HMMenu.ctaPulse([b])
             // iOS strips repeating CA animations on backgrounding and never puts
@@ -88,7 +88,7 @@ public struct HMPillButton: UIViewRepresentable {
 
     public func makeUIView(context: Context) -> UIButton {
         let b = HMMenu.makePill(symbol: symbol, title: title)
-        b.addTarget(context.coordinator, action: #selector(Coordinator.tapped), for: .touchUpInside)
+        b.addTarget(context.coordinator, action: #selector(Coordinator.tapped), for: .primaryActionTriggered)
         return b
     }
     public func updateUIView(_ b: UIButton, context: Context) {

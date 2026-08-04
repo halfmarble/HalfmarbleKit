@@ -28,6 +28,17 @@ import StoreKit
 /// never as an error).
 public enum HMPurchaseOutcome {
     case success, cancelled, pending, failed, unavailable, busy
+    /// StoreKit returned a transaction whose signature/date check did not pass. The player
+    /// HAS been charged, so this must not be reported as a plain failure: the actionable
+    /// advice is "check that Date & Time is set automatically", and the transaction is
+    /// deliberately left unfinished so StoreKit can redeliver it once verification succeeds.
+    case unverified
+}
+
+/// Restore is three-state, not a Bool: "sync failed" and "you own nothing" are opposite
+/// messages, and collapsing them told paying customers they owned nothing.
+public enum HMRestoreOutcome {
+    case restored, nothingToRestore, failed, busy
 }
 
 /// One non-consumable product's entitlement, mirrored into UserDefaults.
@@ -99,15 +110,26 @@ public final class HMStoreUnlock {
     }
 
     /// Load the product (for the price) and re-derive the entitlement.
+    ///
+    /// THE TWO RUN CONCURRENTLY, deliberately. Awaiting the product FIRST put the
+    /// entitlement behind a network request: `Transaction.currentEntitlements` is local and
+    /// resolves offline in milliseconds, while `Product.products(for:)` can hang for the
+    /// whole App Store timeout on a captive-portal or very slow network. On a paid
+    /// REINSTALL the UserDefaults mirror is gone, so `unlocked` seeds false — and the ~2 s
+    /// splash plus one tap is all that stands between launch and `startWave(1)`, which
+    /// snapshots `freeCapActive` for the entire run. A player who owns the game could
+    /// therefore be force-ended AS A WIN at surge 22 and have the score banked to the
+    /// free-tier board. The price string can afford to arrive late; the entitlement cannot.
     public func refresh() async {
-        if let p = try? await Product.products(for: [productID]).first {
+        async let productLoad = try? Product.products(for: [productID]).first
+        await reconcile()                       // local, offline, fast — never gated on the network
+        if let p = await productLoad {
             product = p
             if displayPrice != p.displayPrice {
                 displayPrice = p.displayPrice
                 onChange?()
             }
         }
-        await reconcile()
     }
 
     /// Buy the unlock. On a verified success the entitlement is reflected
@@ -121,7 +143,15 @@ public final class HMStoreUnlock {
         do {
             switch try await product.purchase() {
             case .success(let verification):
-                guard case .verified(let t) = verification else { return .failed }
+                // UNVERIFIED is its own outcome, not a generic failure. Verification is a
+                // local JWS signature + date check, so the realistic cause is a badly wrong
+                // system clock — and the player HAS been charged. Deliberately do NOT
+                // `finish()` it: leaving it unfinished is what lets StoreKit redeliver it
+                // through `Transaction.updates` once verification succeeds, so the install
+                // self-heals when the clock is corrected. Reporting it distinctly is the
+                // only way the host can say "check Date & Time" instead of "try again",
+                // which is advice that cannot work.
+                guard case .verified(let t) = verification else { return .unverified }
                 await t.finish()
                 await reconcile()
                 return .success
@@ -138,12 +168,24 @@ public final class HMStoreUnlock {
     /// whether the unlock is owned afterward.
     @discardableResult
     public func restore() async -> Bool {
-        guard !busy else { return unlocked }
+        await restoreOutcome() == .restored
+    }
+
+    /// The three-state restore the UI actually needs. `try? await AppStore.sync()` used to
+    /// swallow its error, so a sync that failed (no network, a captive portal, a dismissed
+    /// Apple ID prompt) on an install with nothing cached locally was reported to the player
+    /// as "No purchases found to restore." — telling a paying customer, in the App Store-
+    /// mandated restore UI, that they do not own what they bought. `.failed` lets the host
+    /// say "couldn't reach the App Store" instead, which is both true and actionable.
+    public func restoreOutcome() async -> HMRestoreOutcome {
+        guard !busy else { return .busy }        // never render a no-op as "nothing to restore"
         busy = true
         defer { busy = false }
-        try? await AppStore.sync()
-        await reconcile()
-        return unlocked
+        var syncFailed = false
+        do { try await AppStore.sync() } catch { syncFailed = true }
+        await reconcile()                        // local entitlements may still resolve it
+        if unlocked { return .restored }         // …and if they did, the sync error is moot
+        return syncFailed ? .failed : .nothingToRestore
     }
 
     /// Reflect the current entitlement set EXACTLY — including absence: a

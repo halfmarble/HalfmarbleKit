@@ -131,6 +131,17 @@ public final class HMAudioHost {
     private var engineObserver: NSObjectProtocol?
     private var musicFader: DispatchSourceTimer?
     private var watchdogTick = 0
+    /// Main-thread only: the mixer→limiter→output chain is wired for a route/format that may
+    /// no longer be current (a reconnect was skipped, or a start failed against it). Makes
+    /// `restartEngineIfNeeded` rewire before retrying instead of failing forever in silence.
+    private var outputChainStale = false
+    /// ANOTHER APP OWNS THE AUDIO. iOS raises `secondaryAudioShouldBeSilencedHint` while a
+    /// foreground-eligible app (Music, Spotify, Podcasts) is playing primary audio, and the
+    /// platform contract for a `.mixWithOthers` game is to drop its own MUSIC while that is
+    /// true — not to lay a 24 s minor-key drone over the player's podcast. Guarded by
+    /// `stateLock`: written on main from the hint notification and each configureSession(),
+    /// read by the 20 Hz fader. SFX are deliberately unaffected — the game still speaks.
+    private var otherAudioActive = false
 
     // MARK: - Init
 
@@ -232,7 +243,10 @@ public final class HMAudioHost {
             let (duck, audible, mode, aux, engine, nodes):
                 (Float, Bool, Int, Float, AVAudioEngine, [AVAudioPlayerNode]) = self.stateLock.withLock {
                 (self.musicDucked ? 0.35 : 1.0,
-                 self._musicEnabled && !self.musicHold,
+                 // `otherAudioActive` gates the MUSIC only — it rides here rather than on
+                 // each channel's target so the existing fade-to-silence-then-pause path
+                 // does the work, and the loops resume mid-bar when the podcast stops.
+                 self._musicEnabled && !self.musicHold && !self.otherAudioActive,
                  self.musicMode,
                  self.auxGain,
                  self.engine, self.musicNodes)
@@ -364,10 +378,20 @@ public final class HMAudioHost {
         // call runs while the lock is held.
         let newEngine = AVAudioEngine()
         let newNodes = channels.map { _ in AVAudioPlayerNode() }
-        stateLock.withLock {
+        // Hand the OLD engine/nodes out of the critical section before releasing them. The
+        // swap alone would drop their last reference INSIDE the lock, and a dead engine's
+        // dealloc tears down an AUGraph whose server is gone — an AVFAudio call that can
+        // block on XPC, which is exactly what the header rule ("never hold the lock across
+        // an AVFAudio call") and this block's own "no AVFAudio call runs while the lock is
+        // held" comment forbid. The fader's next tick would stall on stateLock for that
+        // whole duration, including the watchdog that is the last line of defence here.
+        let (oldEngine, oldNodes): (AVAudioEngine, [AVAudioPlayerNode]) = stateLock.withLock {
+            let e = engine, n = musicNodes
             engine = newEngine
             musicNodes = newNodes
+            return (e, n)
         }
+        withExtendedLifetime((oldEngine, oldNodes)) {}   // release out here, lock not held
         limiter = Self.makeLimiter()
         sfxNode = nil
         onEngineReset()                // app flushes its voices + policy history
@@ -404,31 +428,69 @@ public final class HMAudioHost {
                                         queue: .main) { [weak self] _ in
             self?.handleMediaServicesReset()
         })
-        if let mark = debugMark {
-            observers.append(nc.addObserver(forName: AVAudioSession.routeChangeNotification,
-                                            object: AVAudioSession.sharedInstance(),
-                                            queue: .main) { note in
-                let reason = (note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt)
-                    .flatMap(AVAudioSession.RouteChangeReason.init(rawValue:))
-                let outs = AVAudioSession.sharedInstance().currentRoute.outputs
-                    .map { $0.portType.rawValue }.joined(separator: "+")
-                mark("audio: route change reason=\(reason.map { String(describing: $0) } ?? "?") → \(outs)")
-            })
-        }
+        // Another app started or stopped playing primary audio (Music, Spotify, Podcasts).
+        // Registered UNCONDITIONALLY — it drives real behaviour now, not just a debug line.
+        observers.append(nc.addObserver(forName: AVAudioSession.silenceSecondaryAudioHintNotification,
+                                        object: AVAudioSession.sharedInstance(),
+                                        queue: .main) { [weak self] note in
+            guard let self else { return }
+            let type = (note.userInfo?[AVAudioSessionSilenceSecondaryAudioHintTypeKey] as? UInt)
+                .flatMap(AVAudioSession.SilenceSecondaryAudioHintType.init(rawValue:))
+            let silence = (type == .begin)
+            self.debugMark?("audio: secondary-audio hint \(silence ? "BEGIN (other app playing)" : "end")")
+            self.stateLock.withLock { self.otherAudioActive = silence }
+        })
+        // Route changes: the observer is registered unconditionally too (the log stays
+        // behind debugMark). Yanking headphones does not stop the engine, so there is
+        // nothing to repair here — this is the diagnostic trail for the route-dependent
+        // format bugs that connectOutputChain now guards against.
+        observers.append(nc.addObserver(forName: AVAudioSession.routeChangeNotification,
+                                        object: AVAudioSession.sharedInstance(),
+                                        queue: .main) { [weak self] note in
+            guard let mark = self?.debugMark else { return }
+            let reason = (note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt)
+                .flatMap(AVAudioSession.RouteChangeReason.init(rawValue:))
+            let outs = AVAudioSession.sharedInstance().currentRoute.outputs
+                .map { $0.portType.rawValue }.joined(separator: "+")
+            mark("audio: route change reason=\(reason.map { String(describing: $0) } ?? "?") → \(outs)")
+        })
         #endif
     }
 
     /// (Re)connect mixer → limiter → output at the CURRENT hardware format —
     /// a new route can carry a different sample rate that invalidates the old
     /// format-pinned connections.
-    private func connectOutputChain() {
+    /// Returns false when the hardware format was unusable and nothing was reconnected —
+    /// the caller must then leave `outputChainStale` set so a later signal retries.
+    ///
+    /// THE FORMAT MUST BE VALIDATED. `engine.connect(_:to:format:)` raises an uncatchable
+    /// Core Audio exception on a 0 Hz / 0-channel format ("required condition is false:
+    /// IsFormatSampleRateAndChannelCountValid"), and `outputNode.inputFormat` returns exactly
+    /// that when the session is inactive or the engine's I/O is torn down — which is the
+    /// state a configuration change can arrive in (a route change landing during an
+    /// interruption, or a config change racing a media-services reset, where the two
+    /// notifications have no defined order). A skipped reconnect is recoverable; a SIGABRT
+    /// takes the run and its unbanked score with it.
+    @discardableResult
+    private func connectOutputChain() -> Bool {
         let hwFormat = engine.outputNode.inputFormat(forBus: 0)
+        guard hwFormat.sampleRate > 0, hwFormat.channelCount > 0 else {
+            debugMark?("audio: skipped reconnect — invalid hw format \(hwFormat)")
+            outputChainStale = true
+            return false
+        }
         engine.connect(engine.mainMixerNode, to: limiter, format: hwFormat)
         engine.connect(limiter, to: engine.outputNode, format: hwFormat)
+        outputChainStale = false
+        return true
     }
 
     private func handleConfigurationChange() {
         engine.stop()                 // normalize so the reconnect is safe
+        // Reactivate BEFORE sampling the format: every other recovery path already runs
+        // configureSession() first (init, and handleMediaServicesReset), and reading the
+        // format off an inactive session is what yields the invalid/stale value above.
+        configureSession()
         connectOutputChain()
         restartEngineIfNeeded()
     }
@@ -440,8 +502,17 @@ public final class HMAudioHost {
     private func restartEngineIfNeeded() {
         guard !engine.isRunning else { return }
         configureSession()
+        // SELF-HEALING. If a reconnect was ever skipped (invalid format) or a start failed
+        // against a stale format-pinned chain, the graph is wired for a route that no longer
+        // exists and `engine.start()` will keep failing — silently, because the `try?` below
+        // swallows it. Without this retry the 2 s watchdog would re-enter here forever and
+        // the game stays silent for the rest of the session with no crash and no log.
+        if outputChainStale { connectOutputChain() }
         engine.prepare()
-        guard (try? engine.start()) != nil else { return }   // still interrupted — the next signal retries
+        guard (try? engine.start()) != nil else {            // still interrupted — the next signal retries
+            outputChainStale = true                          // …and it will rewire before trying again
+            return
+        }
         for (node, loop) in zip(musicNodes, loopBuffers) {
             guard let loop else { continue }                 // load still running — it schedules itself
             node.stop()
@@ -459,6 +530,10 @@ public final class HMAudioHost {
         try? s.setCategory(.playback, options: [.mixWithOthers])
         try? s.setPreferredIOBufferDuration(0.02)
         try? s.setActive(true)
+        // Sample the hint here too, not only from its notification: the app can launch with
+        // another app's audio ALREADY playing, in which case no notification ever arrives.
+        let hint = s.secondaryAudioShouldBeSilencedHint
+        stateLock.withLock { otherAudioActive = hint }
         #endif
     }
 

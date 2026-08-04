@@ -69,9 +69,36 @@ public struct HMPendingScoreQueue: Equatable {
         }
     }
 
+    /// Queue a submission, keeping only the BEST score per (board, day-bucket).
+    ///
+    /// Leaderboards keep a player's high score, so a lower score for the same board is
+    /// already worthless the moment a higher one exists — but the queue used to keep both
+    /// and evict by AGE at the cap. A player who never signs in and whose standout run is
+    /// early loses exactly that run: 50 later, worse runs push it out, and when they finally
+    /// authenticate the flush posts only the survivors. Their actual best never reaches the
+    /// board and nothing else in the app will ever submit it again.
+    ///
+    /// Collapsing on identity makes the cap almost unreachable (ViroFlick has ~24 board
+    /// IDs), and if it is still hit, evicting the LOWEST score loses the least. `attempts`
+    /// carries over so a struggling entry doesn't get an infinite retry budget by being
+    /// superseded.
     public mutating func enqueue(_ s: HMPendingScore) {
+        if let i = items.firstIndex(where: { $0.id == s.id && $0.utcDayOnly == s.utcDayOnly }) {
+            guard s.score > items[i].score else { return }   // an existing entry already beats it
+            var winner = s
+            winner.attempts = items[i].attempts
+            items[i] = winner
+            return
+        }
         items.append(s)
-        if items.count > Self.cap { items.removeFirst(items.count - Self.cap) }   // drop oldest
+        if items.count > Self.cap {
+            // Evict the lowest scores, not the oldest — the cap should cost the least
+            // valuable entries. Stable on ties (keeps the earlier one).
+            while items.count > Self.cap,
+                  let worst = items.indices.min(by: { items[$0].score < items[$1].score }) {
+                items.remove(at: worst)
+            }
+        }
     }
 
     /// The SUBMISSION identity: everything but the bookkeeping (`attempts`) —

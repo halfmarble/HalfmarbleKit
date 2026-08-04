@@ -98,6 +98,59 @@ final class KitContractTests: XCTestCase {
                        "…and the real score is still queued, not evicted")
     }
 
+    /// A leaderboard keeps the player's HIGH score, so a second entry for the same board is
+    /// only ever the better of the two. Keeping both and evicting by age lost the good one:
+    /// a player who never signs in and whose standout run is early gets it pushed out by 50
+    /// later, worse runs, and nothing in the app will ever submit that score again.
+    func testEnqueueKeepsOnlyTheBestScorePerBoard() {
+        var q = HMPendingScoreQueue()
+        let day = 2026_08_04
+        q.enqueue(HMPendingScore(id: "lb.triage", score: 50_000, date: Date(), utcDayOnly: day))
+        for s in stride(from: 100, to: 6_000, by: 100) {          // 59 worse runs after it
+            q.enqueue(HMPendingScore(id: "lb.triage", score: s, date: Date(), utcDayOnly: day))
+        }
+        XCTAssertEqual(q.items.count, 1, "same board + same day collapses to one entry")
+        XCTAssertEqual(q.items.first?.score, 50_000,
+                       "the standout run must survive an avalanche of worse ones")
+    }
+
+    /// Different boards (and different day buckets on a recurring board) stay separate —
+    /// the collapse must not merge scores that belong on different leaderboards.
+    func testEnqueueKeepsBoardsAndDayBucketsSeparate() {
+        var q = HMPendingScoreQueue()
+        q.enqueue(HMPendingScore(id: "lb.a", score: 10, date: Date(), utcDayOnly: 2026_08_04))
+        q.enqueue(HMPendingScore(id: "lb.b", score: 10, date: Date(), utcDayOnly: 2026_08_04))
+        q.enqueue(HMPendingScore(id: "lb.a", score: 10, date: Date(), utcDayOnly: 2026_08_05))
+        q.enqueue(HMPendingScore(id: "lb.a", score: 10, date: Date(), utcDayOnly: nil))
+        XCTAssertEqual(q.items.count, 4, "board id and day bucket both discriminate")
+    }
+
+    /// If the cap is somehow still reached, it must cost the LOWEST scores, not the oldest.
+    func testCapEvictsTheLowestScoresNotTheOldest() {
+        var q = HMPendingScoreQueue()
+        q.enqueue(HMPendingScore(id: "lb.oldest.and.best", score: 1_000_000, date: Date()))
+        for i in 0...HMPendingScoreQueue.cap {                    // cap+1 distinct boards
+            q.enqueue(HMPendingScore(id: "lb.\(i)", score: i + 1, date: Date()))
+        }
+        XCTAssertEqual(q.items.count, HMPendingScoreQueue.cap)
+        XCTAssertTrue(q.items.contains { $0.id == "lb.oldest.and.best" },
+                      "the oldest entry was also the best — age must not decide")
+        XCTAssertFalse(q.items.contains { $0.score == 1 }, "the weakest entry is the one dropped")
+    }
+
+    /// A superseded entry must not hand its replacement a fresh retry budget — otherwise a
+    /// board missing from ASC could retry forever by being re-enqueued each run.
+    func testSupersedingCarriesTheRetryBudgetOver() {
+        var q = HMPendingScoreQueue()
+        let poisoned = HMPendingScore(id: "lb.not.in.asc", score: 10, date: Date())
+        q.enqueue(poisoned)
+        _ = q.recordFailedAttempt(of: poisoned)
+        XCTAssertEqual(q.items.first?.attempts, 1)
+        q.enqueue(HMPendingScore(id: "lb.not.in.asc", score: 99, date: Date()))
+        XCTAssertEqual(q.items.first?.score, 99, "the better score wins the slot")
+        XCTAssertEqual(q.items.first?.attempts, 1, "…but inherits the failures already spent")
+    }
+
     func testUTCDayMatchesTheDailySeedBucket() {
         XCTAssertEqual(HMGameCenter.utcDay(of: Date(timeIntervalSince1970: 0)), 1970_01_01)
         // 2026-07-28 12:00:00 UTC.

@@ -173,11 +173,6 @@ public enum HMMenu {
     /// release/cancel. Scale is transform-only so it never fights the pulse,
     /// which breathes on opacity alone.
     public static func addPressFeedback(to b: UIButton) {
-        b.addAction(UIAction { [weak b] _ in
-            guard let b else { return }
-            if !acceptMenuTap() { b.cancelTracking(with: nil) }
-        }, for: .touchDown)
-
         // THE HOUSE PRESS = the console DROP pill's (gerard, 2026-07-25, after
         // three glyph-treatment iterations all read as noise): the capsule
         // LIGHTS UP while held — fill brightens, stroke brightens — and eases
@@ -192,8 +187,8 @@ public enum HMMenu {
         glow.layer.borderColor = UIColor.white.withAlphaComponent(0.9).cgColor
         glow.layer.borderWidth = 1.5
         b.addSubview(glow)
-        b.addAction(UIAction { [weak b, weak glow] _ in
-            guard let b, let glow else { return }
+
+        let light: (UIButton, UIView) -> Void = { b, glow in
             glow.frame = b.bounds
             glow.layer.cornerRadius = b.bounds.height / 2
             if let iv = b.imageView { b.insertSubview(glow, belowSubview: iv) }
@@ -202,7 +197,31 @@ public enum HMMenu {
                            options: [.allowUserInteraction, .beginFromCurrentState]) {
                 glow.alpha = 1
             }
-        }, for: [.touchDown, .touchDragEnter])
+        }
+
+        // THE DEBOUNCE DECIDES BEFORE ANYTHING LIGHTS UP. These used to be two separate
+        // .touchDown actions — debounce first, glow second — and both ran. So a tremor
+        // after-shock was correctly suppressed (cancelTracking) while the glow still lit,
+        // and because no touch-up ever follows a cancelled track, the capsule stayed lit
+        // FOREVER: white fill, white hairline, nothing happening. To the exact user this
+        // accessibility feature exists for, the button reads as pressed-and-active while
+        // the app did nothing — so the natural response is to press it again. One action,
+        // decision first, is correct regardless of how UIKit orders same-event handlers.
+        b.addAction(UIAction { [weak b, weak glow] _ in
+            guard let b, let glow else { return }
+            guard acceptMenuTap() else {
+                b.cancelTracking(with: nil)
+                glow.alpha = 0                     // never leave a suppressed tap looking held
+                return
+            }
+            light(b, glow)
+        }, for: .touchDown)
+        // Dragging BACK onto an already-tracking button re-lights it; the debounce has
+        // already been paid for this press, so it must not be consulted again.
+        b.addAction(UIAction { [weak b, weak glow] _ in
+            guard let b, let glow else { return }
+            light(b, glow)
+        }, for: .touchDragEnter)
         b.addAction(UIAction { [weak glow] _ in
             guard let glow else { return }
             UIView.animate(withDuration: 0.12, delay: 0,

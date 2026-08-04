@@ -10,13 +10,15 @@ public enum HMBrand {
     /// The studio wordmark — always lowercase (the one cased use is "Halfmarble LLC").
     public static let name = "halfmarble"
 
-    /// MJFF NAMED? OFF since 2026-08-04, pending their reply (gerard: "temp hide
-    /// the mjff references until we hear back"). The 2026-08-01 ruling was that a
-    /// beta could carry the name but a public launch could not until confirmed —
-    /// this is that fallback, armed early so no build can ship the name by
-    /// accident. Flip to `true` the day the confirmation lands; nothing else
-    /// changes, and both games pick it up from here.
-    public static let mjffNamed = false
+    /// MJFF NAMED? ON since 2026-08-04, the day MJFF confirmed in writing that
+    /// the App Store listing language was approved on their side. That closes the
+    /// 2026-08-01 ruling, which let a beta carry the name but not a public
+    /// launch until that confirmation arrived.
+    ///
+    /// The fallback stays wired underneath: flipping this back to `false` removes
+    /// the name everywhere in both games in one edit, which is why the unnamed
+    /// wording is kept rather than deleted.
+    public static let mjffNamed = true
 
     /// The charitable-giving pledge, one line each (mirrors halfmarble.com).
     /// Factual statement only — no logos, no endorsement, no tap target.

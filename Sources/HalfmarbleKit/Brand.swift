@@ -10,11 +10,23 @@ public enum HMBrand {
     /// The studio wordmark — always lowercase (the one cased use is "Halfmarble LLC").
     public static let name = "halfmarble"
 
+    /// MJFF NAMED? OFF since 2026-08-04, pending their reply (gerard: "temp hide
+    /// the mjff references until we hear back"). The 2026-08-01 ruling was that a
+    /// beta could carry the name but a public launch could not until confirmed —
+    /// this is that fallback, armed early so no build can ship the name by
+    /// accident. Flip to `true` the day the confirmation lands; nothing else
+    /// changes, and both games pick it up from here.
+    public static let mjffNamed = false
+
     /// The charitable-giving pledge, one line each (mirrors halfmarble.com).
     /// Factual statement only — no logos, no endorsement, no tap target.
     /// WORDING IS CONTRACTUAL: the signed Team Fox agreement is the source of
     /// truth; never edit these lines from anywhere else.
-    public static let pledgeLines = [
+    public static var pledgeLines: [String] { mjffNamed ? namedPledge : unnamedPledge }
+
+    /// The contractual wording, kept VERBATIM so restoring it is a flag and not a
+    /// retype. Do not edit these except against the signed agreement.
+    static let namedPledge = [
         "5% of software net profits pledged:",
         "2.5% to Michael J. Fox Foundation (MJFF)",
         "2.5% to Public Health Collaboration (PHC)",   // "(PHC)", not "(PHC UK)" — gerard, 2026-07-31
@@ -22,6 +34,20 @@ public enum HMBrand {
         // explicit on all promotional surfaces (agreement wording pass,
         // 2026-07-29); gerard asked for it in-app the same day.
         "halfmarble is an independent Team Fox third-party fundraiser.",
+    ]
+
+    /// The unnamed form. The PLEDGE is unchanged — the same 5%, split the same
+    /// way — only the recipient goes unnamed, because naming a charity implies a
+    /// relationship they have not confirmed yet.
+    ///
+    /// The Team Fox line goes WITH the name, not after it: it exists solely to
+    /// make the third-party relationship explicit, and "Team Fox" is an MJFF
+    /// program, so keeping it while dropping "MJFF" would name them anyway and
+    /// leave a sentence about a relationship the copy no longer mentions.
+    static let unnamedPledge = [
+        "5% of software net profits pledged:",
+        "2.5% to Parkinson's aligned research",
+        "2.5% to Public Health Collaboration (PHC)",
     ]
 
     /// The ring mark, template-rendered — tint it (white on the dark grounds).

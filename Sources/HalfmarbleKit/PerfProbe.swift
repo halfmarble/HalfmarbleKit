@@ -26,6 +26,14 @@ public enum PerfProbe {
         var n = mach_msg_type_number_t(0)
         guard task_threads(mach_task_self_, &list, &n) == KERN_SUCCESS, let threads = list else { return 0 }
         defer {
+            // task_threads hands back a SEND RIGHT per thread, not just an array:
+            // each one has to be released or the task's IPC namespace grows on
+            // every call. Freeing only the array (which is all this used to do)
+            // leaks one dead name per distinct thread ever sampled, and the
+            // urefs on a still-live thread's name climb forever — this runs
+            // 2x/sec for as long as the app renders. Deallocate the rights
+            // FIRST, then the memory that held them.
+            for i in 0..<Int(n) { mach_port_deallocate(mach_task_self_, threads[i]) }
             vm_deallocate(mach_task_self_, vm_address_t(UInt(bitPattern: threads)),
                           vm_size_t(Int(n) * MemoryLayout<thread_t>.stride))
         }

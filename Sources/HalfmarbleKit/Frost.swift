@@ -24,6 +24,14 @@ import SwiftUI
 //  material, how far it is faded, and how dark the shade is. Those are the
 //  three numbers below, and changing one changes every screen in every app.
 //
+//  ALWAYS DARK (gerard, 2026-08-04: "use dark mode for frost"). SwiftUI
+//  Materials follow the colour scheme, so on a device set to Light the glass
+//  rendered WHITE — the Fusion Core sheet came out a pale slab with the amber
+//  washed off it, and the same app looked like two different apps depending on
+//  a system setting nobody thinks about while playing. The dark environment is
+//  pinned on the GLASS LAYER ONLY, never on the content, so text and icons keep
+//  whatever scheme the app gave them.
+//
 //  The recipe came from ViroFlick's score card, went to StringFusor's landing
 //  island, and drifted the moment it was copied a third time (three call sites,
 //  three different shades). This file exists so it cannot drift again.
@@ -77,6 +85,7 @@ public struct HMFrostBackdrop: View {
             Rectangle().fill(HMFrost.material.opacity(HMFrost.materialOpacity))
             Color.black.opacity(HMFrost.backdropShade)
         }
+        .environment(\.colorScheme, .dark)   // the glass is dark on a Light device too
         .ignoresSafeArea()
         .allowsHitTesting(false)
     }
@@ -96,7 +105,13 @@ public extension View {
     /// different recipe.
     func hmFrostedIsland(cornerRadius: CGFloat = HMFrost.islandCornerRadius) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius)
-        return background(HMFrost.material.opacity(HMFrost.materialOpacity), in: shape)
+        // The glass goes in its OWN dark-scheme layer: putting .environment on
+        // the whole modified view would drag the island's text and icons into
+        // dark mode with it.
+        return background {
+            shape.fill(HMFrost.material.opacity(HMFrost.materialOpacity))
+                .environment(\.colorScheme, .dark)
+        }
             .background(shape.fill(HMFrost.islandTint.opacity(HMFrost.islandShade)))
             .overlay(shape.stroke(.white.opacity(HMFrost.islandStroke),
                                   lineWidth: HMFrost.islandStrokeWidth))

@@ -39,6 +39,16 @@ import UIKit
 //    * When rendering STOPS (opaque menus freeze the render loop on purpose), there
 //      are no frames to measure. That time is drawn as a HOLE in the trace, never
 //      interpolated: a gap means "nothing rendered", not "rendered slowly".
+//
+//  THE FLANKING READ-OUT (2026-08-05, gerard: "show FPS, RAM, BUILD in FPS chart"):
+//  when the hosting app hands the view a frame WIDER than the chart pill, the margins
+//  carry a live "60 FPS" tag left of the pill and "54 MB · b1798" right of it. The
+//  FPS shown is the chart's own newest measured bucket — the label annotates the
+//  trace's last point, never a second meter that could disagree with it — RAM is
+//  PerfProbe's phys_footprint (sampled at the same 1Hz as the redraw; a task_info
+//  call has no place at 60Hz), and the build is HMVersion's bundled stamp. A frame
+//  no wider than the pill (how every pre-read-out caller sizes it) hides the tags
+//  and renders pixel-identical to before they existed.
 public final class FPSTimelineView: UIView {
 
     public static let capacity = 60                 // one bucket per second, last 60s
@@ -67,6 +77,11 @@ public final class FPSTimelineView: UIView {
     private let line30 = CAShapeLayer()      // red: the "this is a problem" floor
     private let line60 = CAShapeLayer()      // green: the target the game locks to
     private let trace = CAShapeLayer()       // yellow: measured FPS
+
+    // The flanking read-out — MAIN thread only (mutated inside redraw's 1Hz hop).
+    private let fpsTag = UILabel()           // left of the pill: "60 FPS" (the newest bucket)
+    private let memTag = UILabel()           // right of the pill: "54 MB · b1798"
+    private var lastTagTexts = (left: "", right: "")
 
     /// MAIN-thread copy of the last published snapshot. layoutSubviews re-maps the trace
     /// to new geometry from THIS, never from the live ring — reading the ring from main
@@ -108,6 +123,18 @@ public final class FPSTimelineView: UIView {
         line60.fillColor = nil
         line60.lineWidth = 1
         layer.addSublayer(line60)
+
+        // The read-out tags are chart chrome, so they dress like the chart: the same
+        // black backing as the pill, rounded ends, dim white monospaced digits.
+        for tag in [fpsTag, memTag] {
+            tag.font = .monospacedDigitSystemFont(ofSize: 8, weight: .semibold)
+            tag.textColor = UIColor.white.withAlphaComponent(0.9)
+            tag.textAlignment = .center
+            tag.backgroundColor = UIColor.black.withAlphaComponent(0.4)
+            tag.layer.masksToBounds = true
+            tag.isHidden = true              // shown by the first measured bucket, space permitting
+            addSubview(tag)
+        }
     }
 
     public required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
@@ -119,18 +146,28 @@ public final class FPSTimelineView: UIView {
         // as data movement. Same discipline as redraw(): snap, never animate.
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        let pill = UIBezierPath(roundedRect: bounds, cornerRadius: bounds.height / 2).cgPath
-        backing.path = pill
+        let pill = pillRect
+        let pillPath = UIBezierPath(roundedRect: pill, cornerRadius: pill.height / 2).cgPath
+        backing.path = pillPath
         areaMask.frame = bounds                  // the fill runs to the floor; the pill clips it
-        areaMask.path = pill
+        areaMask.path = pillPath
         for (layer, fps) in [(line1, Float(1)), (line30, Float(30)), (line60, Float(60))] {
             let p = CGMutablePath()
-            p.move(to: CGPoint(x: 4, y: yFor(fps)))
-            p.addLine(to: CGPoint(x: bounds.width - 4, y: yFor(fps)))
+            p.move(to: CGPoint(x: pill.minX + 4, y: yFor(fps)))
+            p.addLine(to: CGPoint(x: pill.maxX - 4, y: yFor(fps)))
             layer.path = p
         }
         CATransaction.commit()
+        layoutTags()                         // re-seat the flanks in the new margins
         redraw(lastPublished)                // re-map the trace to the new geometry
+    }
+
+    /// The chart pill: island-width, centered in whatever frame the host gave us. The
+    /// frame may be WIDER than the pill — the flanking read-out lives in those margins —
+    /// and a frame no wider than the pill simply has no margins (and no read-out).
+    private var pillRect: CGRect {
+        let w = min(Self.islandWidth, bounds.width)
+        return CGRect(x: ((bounds.width - w) / 2).rounded(), y: 0, width: w, height: bounds.height)
     }
 
     /// Feed one rendered frame. RENDER thread; the only member it may touch besides
@@ -195,7 +232,8 @@ public final class FPSTimelineView: UIView {
     /// render stops would otherwise be invisible.
     private func redraw(_ snap: [Float]) {
         lastPublished = snap
-        let w = bounds.width - 8
+        let pill = pillRect
+        let w = pill.width - 8
         guard w > 0 else { return }
         // Split the ring into contiguous runs of MEASURED samples. The gaps between runs are
         // the holes, and both the line and the region under it have to break across them —
@@ -208,7 +246,7 @@ public final class FPSTimelineView: UIView {
                 if !run.isEmpty { runs.append(run); run = [] }
                 continue
             }
-            let x = 4 + w * CGFloat(i) / CGFloat(Self.capacity - 1)
+            let x = pill.minX + 4 + w * CGFloat(i) / CGFloat(Self.capacity - 1)
             run.append(CGPoint(x: x, y: yFor(v)))
         }
         if !run.isEmpty { runs.append(run) }
@@ -237,13 +275,63 @@ public final class FPSTimelineView: UIView {
         area.path = under
         CATransaction.commit()
 
+        updateTags(snap)
+
         // Menus/pause/game-over add whole screens of UIKit above the game view — stay
         // on top of whatever was presented since the last second.
         if let sv = superview, sv.subviews.last !== self { sv.bringSubviewToFront(self) }
     }
 
+    // MARK: the flanking read-out (FPS · RAM · BUILD)
+
+    /// The read-out's exact strings, one per flank — public so app suites can pin the
+    /// format without driving frames through a view.
+    public static func statsTags(fps: Int, ramMB: Int, build: String) -> (left: String, right: String) {
+        ("\(fps) FPS", "\(ramMB) MB · b\(build)")
+    }
+
+    /// MAIN, 1Hz (from redraw, so the tags freeze exactly when the chart does). No tag
+    /// until the first measured bucket: the read-out annotates the chart's own data, and
+    /// before any bucket exists there is nothing to annotate.
+    private func updateTags(_ snap: [Float]) {
+        guard let fps = snap.last(where: { $0 >= 0 }) else { return }
+        let texts = Self.statsTags(fps: Int(fps.rounded()),
+                                   ramMB: PerfProbe.footprintMB(),
+                                   build: HMVersion.build)
+        guard texts != lastTagTexts else { return }      // re-rasterize only on real change
+        lastTagTexts = texts
+        fpsTag.text = texts.left
+        memTag.text = texts.right
+        layoutTags()
+    }
+
+    /// Size and seat the flanks: right-aligned against the pill's left edge, left-aligned
+    /// off its right edge, filling the strip's height. A tag whose margin can't hold it
+    /// HIDES — a truncated number is worse than none, and this is also what keeps a
+    /// pill-wide frame (every pre-read-out caller) rendering exactly as it always did.
+    private func layoutTags() {
+        let pill = pillRect
+        let h = bounds.height
+        let gap: CGFloat = 5
+        for (tag, onLeft) in [(fpsTag, true), (memTag, false)] {
+            guard let text = tag.text, !text.isEmpty else { tag.isHidden = true; continue }
+            let w = ceil(tag.sizeThatFits(CGSize(width: CGFloat.greatestFiniteMagnitude,
+                                                 height: h)).width) + 12
+            let x = onLeft ? pill.minX - gap - w : pill.maxX + gap
+            tag.frame = CGRect(x: x, y: 0, width: w, height: h)
+            tag.layer.cornerRadius = h / 2
+            tag.isHidden = x < 0 || x + w > bounds.width
+        }
+    }
+
     // MARK: test seams
     public var t_snapshot: [Float] { (0..<Self.capacity).map { ring[(head + $0) % Self.capacity] } }
+    /// The chart pill's frame in view coordinates (island-width, centered).
+    public var t_pillFrame: CGRect { pillRect }
+    /// The flanking read-out's visible strings; nil = that tag is hidden.
+    public var t_tagTexts: (left: String?, right: String?) {
+        (fpsTag.isHidden ? nil : fpsTag.text, memTag.isHidden ? nil : memTag.text)
+    }
     public var t_tracePointCount: Int {
         guard let p = trace.path else { return 0 }
         var n = 0

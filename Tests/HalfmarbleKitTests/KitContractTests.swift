@@ -1,5 +1,6 @@
 import XCTest
 import AVFAudio
+import StoreKit
 @testable import HalfmarbleKit
 
 /// The kit's own contracts — born 2026-07-28 from two shipped bugs that only a
@@ -181,5 +182,22 @@ final class KitContractTests: XCTestCase {
                                     defaults: d, devPin: { true }).unlocked,
                       "the dev pin forces the unlock with no receipt at all")
         #endif
+    }
+
+    /// The unverified-redelivery split (2026-08-04 audit): the clock failure
+    /// must KEEP the launch-time retry (never finish), the fraud-class
+    /// failures must be finished so a dead transaction stops redelivering
+    /// forever, and anything StoreKit invents later defaults to the retry —
+    /// a charged purchase is never consumed on a guess.
+    @MainActor
+    func testUnverifiedFinishSplitsByRecoverability() {
+        XCTAssertFalse(HMStoreUnlock.verificationFailureIsPermanent(.invalidDeviceVerification),
+                       "the device-clock failure heals on a future launch — keep the retry")
+        for dead in [VerificationResult<StoreKit.Transaction>.VerificationError.revokedCertificate,
+                     .invalidCertificateChain, .invalidSignature,
+                     .invalidEncoding, .missingRequiredProperties] {
+            XCTAssertTrue(HMStoreUnlock.verificationFailureIsPermanent(dead),
+                          "\(dead) can never verify — finish it or it redelivers forever")
+        }
     }
 }

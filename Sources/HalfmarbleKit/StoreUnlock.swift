@@ -100,10 +100,25 @@ public final class HMStoreUnlock {
         let watched = productID
         updatesTask = Task { [weak self] in
             for await update in Transaction.updates {
-                guard case .verified(let t) = update,
-                      t.productID == watched else { continue }
-                await t.finish()
-                await self?.reconcile()
+                switch update {
+                case .verified(let t) where t.productID == watched:
+                    await t.finish()
+                    await self?.reconcile()
+                case .unverified(let t, let error) where t.productID == watched:
+                    // An unfinished transaction is redelivered here once per
+                    // launch with verification RE-RUN each time — that retry
+                    // loop is the deliberate recovery path for the failure a
+                    // player can fix (.invalidDeviceVerification: the device
+                    // clock). But the fraud-class failures can never pass on
+                    // any future launch, so leaving those unfinished just
+                    // redelivered them forever (2026-08-04 audit). Finish the
+                    // permanently dead; keep the retry alive for the rest.
+                    if Self.verificationFailureIsPermanent(error) {
+                        await t.finish()
+                    }
+                default:
+                    continue    // another product's transaction — never consume it here
+                }
             }
         }
         Task { await refresh() }
@@ -226,5 +241,26 @@ public final class HMStoreUnlock {
         unlocked = owned
         defaults.set(owned, forKey: defaultsKey)
         onChange?()
+    }
+
+    /// Can this verification failure EVER pass on a future launch? The clock
+    /// case (.invalidDeviceVerification) can — the player sets Date & Time to
+    /// automatic and the next redelivery verifies, which is why the purchase
+    /// path leaves it unfinished. A bad signature or a revoked certificate
+    /// cannot: those transactions are dead on every future launch, and only
+    /// finish() stops StoreKit redelivering the corpse. Unknown future cases
+    /// stay false — never consume a charged purchase on a guess.
+    /// Internal-visible so a kit test can pin the split.
+    static func verificationFailureIsPermanent(
+        _ error: VerificationResult<Transaction>.VerificationError) -> Bool {
+        switch error {
+        case .invalidDeviceVerification:
+            return false
+        case .revokedCertificate, .invalidCertificateChain,
+             .invalidSignature, .invalidEncoding, .missingRequiredProperties:
+            return true
+        @unknown default:
+            return false
+        }
     }
 }

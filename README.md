@@ -49,6 +49,16 @@ line in this package exists because something failed on a real device, and the c
 record of what. Please keep that style — a value with a reason is maintainable, a magic number is
 not.
 
+## Prior art
+
+The tremor debounce in `MenuButtons.swift` — an input filter whose window is derived from the
+characteristic frequency of a hand tremor, scoped per control so it never eats a fast deliberate
+sequence — is published as a defensive publication and **dedicated to the public domain**:
+[PRIOR_ART_TREMOR_DEBOUNCE.md](PRIOR_ART_TREMOR_DEBOUNCE.md).
+
+It is there so the method stays freely practicable by anyone and cannot be patented by a third
+party. It is an accessibility technique and makes no health claim.
+
 ## License
 
 [Apache 2.0](LICENSE). The halfmarble name and ring mark are trademarks of Halfmarble LLC and are

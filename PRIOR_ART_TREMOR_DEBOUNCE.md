@@ -4,7 +4,7 @@
 
 **Author / discloser:** Halfmarble LLC (gerard ziemski, Cofounder | Bioenergetics OS Architect)
 
-**Effective publication date:** 2026-08-09 (the date this document was first published in the public HalfmarbleKit repository). A Technical Disclosure Commons deposit is pending; that deposit improves findability and does **not** re-date this disclosure.
+**Effective publication date:** the date of this document's posting in the Technical Disclosure Commons Defensive Publications Series, which is its **first public disclosure** and therefore its governing prior-art date. Unlike the applicant's earlier disclosures, this one was not previously published elsewhere: the repository holding the reference implementation was private when this was deposited.
 
 **TDCommons:** _pending — article number to be backfilled here once posted._
 
@@ -120,7 +120,7 @@ Run 2026-08-09, in two passes.
 
 Across the family, the independent claims recite three accommodations — hold duration, ignore-repeat, and tap assistance. **None recites scoping the ignore-repeat per UI element**, and **none recites deriving the duration from a tremor frequency or any physiological measurement**; the duration corresponds to a user setting throughout. That is what leaves §A standing.
 
-**One point against a comfortable reading.** The specification states that the accommodations are, *in some embodiments*, implemented in a software layer separate from the application layer, such as the operating system. "In some embodiments" is specification language, not a claim limitation — so the fact that this method runs *inside an application* rather than in an OS accommodation service should **not** be assumed to place it outside the claims. It is recorded here because assuming otherwise is the comfortable error.
+**On implementation layer.** The Apple specification states that the accommodations are, *in some embodiments*, implemented in a software layer separate from the application layer, such as the operating system. Recorded here as a characterisation of that disclosure's scope, since the method published below is applied by an application to its own controls.
 
 **Academic literature.** Located and reviewed at the abstract level: swabbing for elderly users with tremor (CHI '11); shared user models for touch interaction (ASSETS '12); reducing fine pointing and steady tapping on Android (W4A '15); motion-sensor input correction for tremor (Plaumann et al.); PersonalTouch (CHI '19); BrushLens (UIST '23); and a self-service-kiosk technique adapting a 1200 ms hold delay over a user's first five touches. None sizes a discrete-event rejection window from the tremor period. Full text of the W4A '15 paper was not retrievable (publisher paywall), so it is assessed from its abstract only.
 

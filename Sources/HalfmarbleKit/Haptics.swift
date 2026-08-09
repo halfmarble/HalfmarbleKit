@@ -25,10 +25,24 @@ public enum HMHaptics {
     #endif
 
     /// The shared enable flag — absent = on (first-launch default). Settings
-    /// screens write the same key they always did; this reads it live.
-    public static var enabled: Bool {
+    /// screens read and write it through here; this reads it live.
+    ///
+    /// `nonisolated`, like `prepare`/`impact`: the flag is a UserDefaults read
+    /// (its own synchronization) and touches no feedback generator, so a caller
+    /// off the main thread should not have to hop just to ask.
+    nonisolated public static var enabled: Bool {
         UserDefaults.standard.object(forKey: HMDefaultsKeys.hapticsEnabled) == nil
             || UserDefaults.standard.bool(forKey: HMDefaultsKeys.hapticsEnabled)
+    }
+
+    /// Write the shared enable flag (2026-08-09). The kit owned the key and the
+    /// absent-=-on READ from the start but never the write, so both shipped apps
+    /// set the key by hand — and ViroFlick additionally cached the value in a
+    /// stored property whose initializer restated absent-=-on, giving one flag
+    /// two definitions of its own default plus a copy that any write from
+    /// elsewhere would leave stale. Settings screens call this instead.
+    nonisolated public static func setEnabled(_ on: Bool) {
+        UserDefaults.standard.set(on, forKey: HMDefaultsKeys.hapticsEnabled)
     }
 
     /// Warm a generator ahead of a burst (the Taptic Engine spin-up).

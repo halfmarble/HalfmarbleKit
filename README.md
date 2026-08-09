@@ -12,12 +12,14 @@ two menu-button implementations had already drifted apart.
 | | |
 |---|---|
 | `AudioHost` | The `AVAudioEngine` host: engine graph, session config, interruption / route-change / media-services-reset recovery, and a 20 Hz fader that doubles as an engine watchdog. Apps supply the content; the host renders it through one callback. |
-| `StoreUnlock` | StoreKit 2 one-time unlock: product load, the lifelong `Transaction.updates` listener, exact entitlement reconciliation (revocation- and absence-aware), purchase with verify-then-finish, and three-state restore. |
+| `StoreUnlock` / `UnlockPrompt` | StoreKit 2 one-time unlock: product load, the lifelong `Transaction.updates` listener, exact entitlement reconciliation (revocation- and absence-aware), purchase with verify-then-finish, and three-state restore — plus the purchase card in front of it, including the status line every no-UI failure path needs. |
 | `MenuButtons` / `MenuButtonViews` | The house buttons — pills and the big CTA, black-outline treatment, press feedback, tremor tap-debounce, breathing pulse. UIKit core with thin SwiftUI wrappers. |
 | `Brand` / `BrandSplash` | Wordmark, ring mark, the charitable-giving pledge, and the lockup metrics both splash choreographies share. |
 | `GameCenter` | Authentication, leaderboard and achievement submission, with the app supplying its own IDs. |
 | `ArrowKeys` / `HoldKeys` | Hardware-keyboard and game-controller input, including hold-to-repeat. |
 | `Frost` / `Outline` / `OutlineSwiftUI` | The two blur recipes and the outline treatment, so every surface matches. |
+| `Texture` | The scale-1 renderer format for procedurally generated art that gets stretched — the rule that keeps a full-screen gradient from becoming a 21 MB bitmap. |
+| `Share` | The system share sheet, with the presenter walk and the iPad popover anchor that a missing `sourceView` turns into a crash. |
 | `PerfProbe` / `FPSTimelineView` / `StartupProf` | The FPS · RAM · BUILD diagnostic strip and startup profiling. |
 | `Haptics` / `UISound` / `DefaultsKeys` / `Version` / `ReleaseChannel` | The small shared utilities. |
 | `HalfmarbleTestKit` | Test-only harnesses (imports XCTest). App **test** targets depend on this; app targets never do. |
@@ -38,8 +40,12 @@ The kit is iOS-only, so `swift build` / `swift test` on macOS cannot build it. U
 destination:
 
 ```bash
-xcodebuild test -scheme HalfmarbleKit -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+xcodebuild test -scheme HalfmarbleKit-Package -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
+
+`HalfmarbleKit-Package`, not `HalfmarbleKit`: the per-target scheme SwiftPM generates has no test
+action, so the obvious spelling fails with "Scheme HalfmarbleKit is not currently configured for
+the test action". The `-Package` scheme is the one that carries the test targets.
 
 ## A note on the comments
 

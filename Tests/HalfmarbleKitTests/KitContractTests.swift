@@ -1,6 +1,7 @@
 import XCTest
 import AVFAudio
 import StoreKit
+import UIKit
 @testable import HalfmarbleKit
 
 /// The kit's own contracts — born 2026-07-28 from two shipped bugs that only a
@@ -199,5 +200,157 @@ final class KitContractTests: XCTestCase {
             XCTAssertTrue(HMStoreUnlock.verificationFailureIsPermanent(dead),
                           "\(dead) can never verify — finish it or it redelivers forever")
         }
+    }
+
+    // MARK: - HMTexture (2026-08-09 extraction)
+
+    /// The whole point of the type. A regression to the renderer's DEFAULT scale
+    /// is invisible — every image still renders, just at 4–9× the bytes — which is
+    /// exactly how ViroFlick's backdrop became a 21 MB bitmap.
+    func testSoftFormatIsAlwaysScaleOneWhateverTheScreenIs() {
+        XCTAssertEqual(HMTexture.softFormat().scale, 1)
+        XCTAssertEqual(HMTexture.softFormat(opaque: true).scale, 1)
+    }
+
+    /// Alpha by default: a glow or a soft blob rendered opaque comes out on a
+    /// black square, so `opaque` must never creep into being the default.
+    func testSoftFormatKeepsAlphaUnlessAskedOtherwise() {
+        XCTAssertFalse(HMTexture.softFormat().opaque, "transparency is the default")
+        XCTAssertTrue(HMTexture.softFormat(opaque: true).opaque)
+    }
+
+    // MARK: - HMHaptics enable flag (2026-08-09: the kit gained the setter)
+
+    /// Absent = ON. Two apps used to restate this rule in their own code; it has
+    /// exactly one definition now, and a flip to absent-=-off would silently mute
+    /// haptics for every first-launch player.
+    func testHapticsDefaultsOnWhenTheKeyIsAbsentAndRoundTrips() {
+        let d = UserDefaults.standard
+        let saved = d.object(forKey: HMDefaultsKeys.hapticsEnabled)
+        defer {
+            if let saved { d.set(saved, forKey: HMDefaultsKeys.hapticsEnabled) }
+            else { d.removeObject(forKey: HMDefaultsKeys.hapticsEnabled) }
+        }
+
+        d.removeObject(forKey: HMDefaultsKeys.hapticsEnabled)
+        XCTAssertTrue(HMHaptics.enabled, "first launch must feel the game")
+
+        HMHaptics.setEnabled(false)
+        XCTAssertFalse(HMHaptics.enabled)
+        XCTAssertEqual(d.object(forKey: HMDefaultsKeys.hapticsEnabled) as? Bool, false,
+                       "the setter must write the SHARED key, not a private one")
+        HMHaptics.setEnabled(true)
+        XCTAssertTrue(HMHaptics.enabled)
+    }
+
+    // MARK: - HMMenu.styleToggle (2026-08-09 extraction)
+
+    @MainActor
+    func testStyleToggleSwapsTitleAndDimsOnAConfigurationPill() {
+        let pill = HMMenu.makePill(symbol: "music.note", title: "MUSIC ON")
+        HMMenu.styleToggle(pill, on: true, onTitle: "MUSIC ON", offTitle: "MUSIC OFF")
+        XCTAssertEqual(pill.configuration?.title, "MUSIC ON")
+        XCTAssertEqual(pill.configuration?.baseForegroundColor?.cgColor.alpha ?? 0,
+                       HMMenu.toggleOnAlpha, accuracy: 0.001)
+
+        HMMenu.styleToggle(pill, on: false, onTitle: "MUSIC ON", offTitle: "MUSIC OFF")
+        XCTAssertEqual(pill.configuration?.title, "MUSIC OFF")
+        XCTAssertEqual(pill.configuration?.baseForegroundColor?.cgColor.alpha ?? 0,
+                       HMMenu.toggleOffAlpha, accuracy: 0.001)
+    }
+
+    /// A plain `.system` button has no `configuration`, so the mutation path is a
+    /// silent no-op on it — the fallback is what makes the helper safe to point at
+    /// whatever button a caller happens to be holding.
+    @MainActor
+    func testStyleToggleFallsBackForAPlainButton() {
+        let b = UIButton(type: .system)
+        HMMenu.styleToggle(b, on: false, onTitle: "ON", offTitle: "OFF")
+        XCTAssertEqual(b.title(for: .normal), "OFF")
+        XCTAssertEqual(b.titleColor(for: .normal)?.cgColor.alpha ?? 0,
+                       HMMenu.toggleOffAlpha, accuracy: 0.001)
+    }
+
+    /// The OFF state must stay readable — a toggle you cannot read is one you
+    /// cannot find your way back to.
+    func testToggleOffStaysLegible() {
+        XCTAssertGreaterThanOrEqual(HMMenu.toggleOffAlpha, 0.35)
+        XCTAssertGreaterThan(HMMenu.toggleOnAlpha, HMMenu.toggleOffAlpha)
+    }
+
+    // MARK: - HMShare (2026-08-09 extraction)
+
+    @MainActor
+    func testTopMostViewControllerWalksThePresentationChain() {
+        XCTAssertNil(HMShare.topMostViewController(from: nil))
+
+        let root = UIViewController()
+        XCTAssertIdentical(HMShare.topMostViewController(from: root), root,
+                           "nothing presented → the root IS the top")
+
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = root
+        window.isHidden = false
+        let sheet = UIViewController()
+        root.present(sheet, animated: false)
+        XCTAssertTrue(HMTest.poll(2) { root.presentedViewController != nil },
+                      "presentation never completed — the rest of this test proves nothing")
+        // Presenting from `root` while it is already presenting is exactly what
+        // silently drops a share sheet; the walk has to reach `sheet`.
+        XCTAssertIdentical(HMShare.topMostViewController(from: root), sheet)
+        window.isHidden = true
+    }
+
+    // MARK: - HMUnlockPromptView (2026-08-09 extraction)
+
+    @MainActor
+    private func makePrompt(width: CGFloat,
+                            onBuy: @escaping () -> Void = {},
+                            onDismiss: @escaping () -> Void = {}) -> HMUnlockPromptView {
+        let v = HMUnlockPromptView(
+            frame: CGRect(x: 0, y: 0, width: width, height: 844),
+            copy: HMUnlockPromptCopy(title: "UNLOCK ALL",
+                                     body: String(repeating: "word ", count: 40),
+                                     buyTitle: "UNLOCK · $2.99", dismissTitle: "NOT NOW"),
+            style: HMUnlockPromptStyle(accent: .orange),
+            onBuy: onBuy, onDismiss: onDismiss)
+        v.layoutIfNeeded()
+        return v
+    }
+
+    /// The status line is the card's only voice on the paths where StoreKit shows
+    /// no UI of its own. It must exist, and it must start SILENT — a card that
+    /// opens already saying something reads as an error before you touched it.
+    @MainActor
+    func testUnlockPromptStatusLineStartsEmptyAndIsWritable() {
+        let v = makePrompt(width: 390)
+        XCTAssertEqual(v.statusLabel.text, "")
+        v.statusLabel.text = "Purchase failed."
+        XCTAssertEqual(v.statusLabel.text, "Purchase failed.")
+    }
+
+    /// The body must have real room on a NARROW screen — this is the fixed-height
+    /// bug that truncated a free-tier promise mid-sentence at 375pt.
+    @MainActor
+    func testUnlockPromptBodyGetsRoomOnEveryPhoneWidth() {
+        for width in [320.0, 375.0, 390.0, 430.0] as [CGFloat] {
+            let v = makePrompt(width: width)
+            XCTAssertGreaterThan(v.t_bodyFrame.height, 40,
+                                 "body squeezed to \(v.t_bodyFrame.height)pt at \(width)pt wide")
+            XCTAssertLessThanOrEqual(v.t_cardFrame.width, 340, "card must not exceed maxWidth")
+            XCTAssertLessThan(v.t_cardFrame.width, width, "card must not touch the screen edges")
+            XCTAssertEqual(v.t_bodyFrame.maxY, v.t_buyButton.frame.minY - 8, accuracy: 0.5,
+                           "the body must stop above the buy button, never under it")
+        }
+    }
+
+    @MainActor
+    func testUnlockPromptButtonsFireTheirActions() {
+        var bought = 0, dismissed = 0
+        let v = makePrompt(width: 390, onBuy: { bought += 1 }, onDismiss: { dismissed += 1 })
+        v.t_buyButton.sendActions(for: .primaryActionTriggered)
+        v.t_dismissButton.sendActions(for: .primaryActionTriggered)
+        XCTAssertEqual(bought, 1)
+        XCTAssertEqual(dismissed, 1)
     }
 }

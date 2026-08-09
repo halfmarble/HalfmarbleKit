@@ -140,6 +140,38 @@ public enum HMMenu {
         return b
     }
 
+    // MARK: Toggle pills
+
+    /// A settings toggle's title alpha, ON and OFF (2026-08-09). The pair is the
+    /// house answer to "how does a pill show its own state": the label stays put
+    /// and the whole pill dims, so the row never reflows and the OFF state reads
+    /// at a glance without a second glyph or a switch control. ViroFlick had this
+    /// literal pair written out five times in one file.
+    ///
+    /// 0.4, not lower: the OFF title must still be legible — a toggle you cannot
+    /// read is a toggle you cannot find your way back to.
+    public static let toggleOnAlpha: CGFloat = 0.9
+    public static let toggleOffAlpha: CGFloat = 0.4
+
+    /// Point a toggle pill at its current state: swap the title and dim it.
+    ///
+    /// Mutating `configuration` directly is deliberate — `makePill` freezes
+    /// automatic configuration updates (see the comment there), so a manual
+    /// assignment is what actually re-renders. A plain `.system` button without a
+    /// configuration falls back to `setButtonForeground`, so callers do not have
+    /// to know which shape they were handed.
+    public static func styleToggle(_ b: UIButton, on: Bool,
+                                   onTitle: String, offTitle: String) {
+        let color = UIColor.white.withAlphaComponent(on ? toggleOnAlpha : toggleOffAlpha)
+        guard b.configuration != nil else {
+            b.setTitle(on ? onTitle : offTitle, for: .normal)
+            setButtonForeground(b, color)
+            return
+        }
+        b.configuration?.title = on ? onTitle : offTitle
+        b.configuration?.baseForegroundColor = color
+    }
+
     /// The "new here?  start with  [symbol] LABEL" coaching hint — ViroFlick's
     /// makeTextbookHint, generalized: dim Medium-12 text with the SF Symbol
     /// outlined, tinted the same dim color, and centered on the cap height.

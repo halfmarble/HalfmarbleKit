@@ -112,7 +112,21 @@ Presented honestly: debouncing is ancient and **substantially anticipated**, inc
 
 **Net.** The base mechanism — reject a repeat inside a window — is anticipated and, for touch, claimed by Apple. What the search did **not** find is the bridge between the **physiology** and the **parameter**: the explicit derivation `W = 1/f` from the tremor's characteristic frequency, and the coverage rule that follows (a window `W` suppresses everything *faster* than `1/W`, so the uncovered tail is the **slow** side of the band). Every repeat filter located above exposes its interval as an arbitrary user setting. Publishing §A–§D forecloses a clean novelty claim over that derivation and over its pairing with per-control scoping applied by default at the application layer — the obviousness combination (a platform repeat filter plus a published tremor frequency) now has an express teaching in the record instead of having to be assumed.
 
-> **Scope of the search behind this section.** A targeted search of patent and product literature was run on 2026-08-09 covering: platform touch- and key-repeat accessibility filters, issued patents on touch accommodation and tremor correction, and academic work on tremor-affected touch input. It located the Apple family above, which is the material result. It was **not** an exhaustive freedom-to-operate analysis, and **this document is not one** — a defensive publication establishes prior art, it does not clear a path through someone else's claims. Anyone relying on this for FTO should get a professional opinion, with US 9,961,239 and its continuations as the starting point.
+### Scope of the search behind this section
+
+Run 2026-08-09, in two passes.
+
+**The Apple family, mapped.** `US 9,961,239 B2` (filed 2015-09-23, priority **2015-06-07**) → `US 2018/0213126` (15/924,769) → `US 10,986,252` (16/534,291) → `US 11,470,225` (17/224,997, filed 2021). Anticipated expiry **2035-09-23**. Inventors Fleizach, Kasemset, Kannamangalam Sundara Raman. The successive continuations mean the family has been kept in prosecution, so claim scope in this area is not necessarily settled.
+
+Across the family, the independent claims recite three accommodations — hold duration, ignore-repeat, and tap assistance. **None recites scoping the ignore-repeat per UI element**, and **none recites deriving the duration from a tremor frequency or any physiological measurement**; the duration corresponds to a user setting throughout. That is what leaves §A standing.
+
+**One point against a comfortable reading.** The specification states that the accommodations are, *in some embodiments*, implemented in a software layer separate from the application layer, such as the operating system. "In some embodiments" is specification language, not a claim limitation — so the fact that this method runs *inside an application* rather than in an OS accommodation service should **not** be assumed to place it outside the claims. It is recorded here because assuming otherwise is the comfortable error.
+
+**Academic literature.** Located and reviewed at the abstract level: swabbing for elderly users with tremor (CHI '11); shared user models for touch interaction (ASSETS '12); reducing fine pointing and steady tapping on Android (W4A '15); motion-sensor input correction for tremor (Plaumann et al.); PersonalTouch (CHI '19); BrushLens (UIST '23); and a self-service-kiosk technique adapting a 1200 ms hold delay over a user's first five touches. None sizes a discrete-event rejection window from the tremor period. Full text of the W4A '15 paper was not retrievable (publisher paywall), so it is assessed from its abstract only.
+
+**Unresolved.** No international (EP/WO/CN/JP) family members for the Apple patents were confirmed either way from the sources reachable here; a non-US search is still owed if this matters for a non-US filing.
+
+> **This is not a freedom-to-operate analysis and must not be used as one.** A defensive publication establishes prior art; it does not clear a path through anyone else's claims. Anyone relying on this commercially should obtain a professional opinion, starting from `US 9,961,239` and its continuations.
 
 ---
 

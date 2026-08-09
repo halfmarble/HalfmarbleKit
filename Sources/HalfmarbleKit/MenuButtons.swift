@@ -36,6 +36,12 @@ public enum HMMenu {
     /// still registers. The SAME tuned constant StringFusor's in-game commit
     /// controls use (its tremor-debounce commit grounds the rationale); the
     /// old 0.25 here was the untuned legacy value with a mislabelled comment.
+    ///
+    /// KEEP THIS A CONSTANT — do not expose it as a user setting. The value is
+    /// *derived* (one period of the tremor it filters), not a preference, and a
+    /// slider invites numbers with no physiology behind them: too short filters
+    /// nothing, too long eats deliberate re-presses. The derivation is the
+    /// feature. See PRIOR_ART_TREMOR_DEBOUNCE.md for the arithmetic.
     public static let menuTapCooldown: TimeInterval = 0.20
     nonisolated(unsafe) private static var lastMenuTapDown: TimeInterval = -1
 

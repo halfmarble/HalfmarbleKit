@@ -353,4 +353,39 @@ final class KitContractTests: XCTestCase {
         XCTAssertEqual(bought, 1)
         XCTAssertEqual(dismissed, 1)
     }
+
+    // MARK: - Grouped scores
+
+    /// The house rule: scores read XXX,XXX (gerard, 2026-07-26).
+    func testGroupedScoresReadWithCommas() {
+        XCTAssertEqual(1234.grouped, "1,234")
+        XCTAssertEqual(12480.grouped, "12,480")
+        XCTAssertEqual(96400.grouped, "96,400")
+        XCTAssertEqual(1234567.grouped, "1,234,567")
+    }
+
+    /// Below the grouping threshold nothing is inserted, and zero stays "0" —
+    /// the readouts show small numbers constantly (a fresh board is 0 ENERGY).
+    func testGroupedLeavesSmallNumbersAlone() {
+        XCTAssertEqual(0.grouped, "0")
+        XCTAssertEqual(7.grouped, "7")
+        XCTAssertEqual(999.grouped, "999")
+    }
+
+    /// THE REASON THIS LIVES IN THE KIT. ViroFlick's two inline formatters were
+    /// unpinned, so a device grouping with "." rendered "12.480" inside
+    /// otherwise-English copy — and disagreed with StringFusor on the same
+    /// phone. The separator must be en_US whatever the device is set to, so
+    /// this asserts against a de_DE formatter rather than trusting the ambient
+    /// test locale (which is en_US, and would pass either way).
+    func testGroupingIgnoresTheDeviceLocale() {
+        let german = NumberFormatter()
+        german.numberStyle = .decimal
+        german.locale = Locale(identifier: "de_DE")
+        XCTAssertEqual(german.string(from: NSNumber(value: 12480)), "12.480",
+                       "sanity: de_DE really does group with a period")
+        XCTAssertEqual(12480.grouped, "12,480")
+        XCTAssertNotEqual(12480.grouped, german.string(from: NSNumber(value: 12480)),
+                          "grouped must not follow a period-grouping locale")
+    }
 }

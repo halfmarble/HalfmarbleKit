@@ -4,9 +4,9 @@
 
 **Author / discloser:** Halfmarble LLC (gerard ziemski, Cofounder | Bioenergetics OS Architect)
 
-**Effective publication date:** the date of this document's posting in the Technical Disclosure Commons Defensive Publications Series, which is its **first public disclosure** and therefore its governing prior-art date. Unlike the applicant's earlier disclosures, this one was not previously published elsewhere: the repository holding the reference implementation was private when this was deposited.
+**Effective publication date:** 2026-08-09 — the date this document became publicly accessible in the HalfmarbleKit repository (`github.com/halfmarble/HalfmarbleKit`), which is its **first public disclosure** and therefore its governing prior-art date. It was deposited the same day in the Technical Disclosure Commons Defensive Publications Series, where it was still unpublished and login-gated at the moment the repository went public; the TDCommons posting supplies the indexed, examiner-searchable record and does **not** re-date this disclosure.
 
-**TDCommons:** _pending — article number to be backfilled here once posted._
+**TDCommons:** submission **#12667**, deposited 2026-08-09 — _article number to be backfilled here once posted._
 
 **Status:** Defensive publication. The method described herein is dedicated to the public domain (see *Dedication*, below).
 

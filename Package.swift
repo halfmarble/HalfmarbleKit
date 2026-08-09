@@ -33,7 +33,13 @@ let package = Package(
         .target(name: "HalfmarbleTestKit"),
         // The kit's OWN contracts (run with an iOS-simulator destination —
         // the kit is iOS-only, so `swift test` on macOS cannot build it):
-        //   xcodebuild test -scheme HalfmarbleKit -destination 'platform=iOS Simulator,name=…'
+        //   xcodebuild test -scheme HalfmarbleKit-Package -destination 'platform=iOS Simulator,name=…'
+        // The scheme is HalfmarbleKit-PACKAGE, not HalfmarbleKit: SwiftPM
+        // generates a library scheme per product plus one whole-package scheme,
+        // and only the latter includes the test targets. The library scheme
+        // fails with "Scheme HalfmarbleKit is not currently configured for the
+        // test action", which reads like a broken checkout rather than the
+        // wrong scheme name.
         .testTarget(name: "HalfmarbleKitTests", dependencies: ["HalfmarbleKit"]),
     ]
 )

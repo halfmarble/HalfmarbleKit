@@ -8,6 +8,11 @@
 
 **TDCommons:** submission **#12667**, deposited 2026-08-09 — _article number to be backfilled here once posted._
 
+**Independent archival of the publication date.** A git repository cannot establish its own publication date — commit timestamps are author-settable and the hosting platform exposes no "made public at" field — so the date asserted above is corroborated by third-party, content-addressed records made on 2026-08-09:
+
+- **Software Heritage**, snapshot `swh:1:snp:1f012d5d06f24827636ba19853afb3cc656f438d` (visit status *full*), archiving `refs/heads/main` at commit `7ed11b2a0dabb6e0c333d5316a5126d875fe9f98` together with release tags `1.0.0` and `1.0.1`. The first-published text of this disclosure within that snapshot is the content object `swh:1:cnt:130ee9a06bd16fde93d29439d7a4458db63b0b51`. (That archived revision predates this paragraph, which was added afterwards; the body of the disclosure — §A–§D, the prior-art analysis, and the dedication — is unchanged from it.)
+- **Internet Archive**, repository landing page captured at `web.archive.org/web/20260809191456/https://github.com/halfmarble/HalfmarbleKit`.
+
 **Status:** Defensive publication. The method described herein is dedicated to the public domain (see *Dedication*, below).
 
 ---

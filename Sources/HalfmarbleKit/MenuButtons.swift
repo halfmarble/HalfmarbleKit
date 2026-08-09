@@ -103,14 +103,29 @@ public enum HMMenu {
         bg.strokeWidth = 1.5
         cfg.background = bg
         b.configuration = cfg
-        // ONE motion per press, not three (gerard: the pill "fluttered"): a
-        // configuration button re-applies its whole configuration on every
-        // state change — UIKit's own highlight dim stacking on top of the
-        // press feedback's darken + scale. Freeze the automatic updates; the
-        // kit's press feedback is the single source of touch response.
-        // (Manual `configuration?.x = y` mutations — the toggles — still
-        // apply immediately; only STATE-driven re-renders are silenced.)
-        b.automaticallyUpdatesConfiguration = false
+        // `automaticallyUpdatesConfiguration` is left at its default (true).
+        //
+        // It used to be forced FALSE here, to stop a pill that "fluttered" on
+        // press (gerard): back then the press feedback DARKENED the title and
+        // SCALED the button, and UIKit's own highlight re-render stacked a
+        // third motion on top of those two. That feedback was replaced by the
+        // glow OVERLAY below — nothing scales, no glyph changes — so the
+        // stacking it was defending against no longer exists.
+        //
+        // The flag had to go regardless, because the claim that used to sit
+        // here — "manual `configuration?.x = y` mutations still apply
+        // immediately; only STATE-driven re-renders are silenced" — is FALSE.
+        // With automatic updates off a button never re-renders its
+        // configuration at all, so EVERY toggle in both apps changed its
+        // stored title and went on drawing the old one: tapping MUSIC muted
+        // the game while the pill still read MUSIC ON. It stayed invisible for
+        // months because each app's styler happened to re-set the same string
+        // the pill was BUILT with, so nothing changed until you tapped —
+        // except ViroFlick's ACUITY pill, the one styler that rewrites its
+        // title at build time ("ACUITY" -> "ACUITY · NORMAL"), which drew its
+        // icon alone with no label at all. Measured 2026-08-09: neither
+        // assigning the whole struct nor calling setNeedsUpdateConfiguration()
+        // / updateConfiguration() revives it — only this flag does.
         addPressFeedback(to: b)
         return b
     }

@@ -271,6 +271,41 @@ final class KitContractTests: XCTestCase {
                        HMMenu.toggleOffAlpha, accuracy: 0.001)
     }
 
+    /// THE FROZEN TOGGLE (2026-08-09). `makePill` used to force
+    /// `automaticallyUpdatesConfiguration = false`, and the comment claimed manual
+    /// `configuration` mutations still applied. They did not: the button never
+    /// re-rendered its configuration, so every toggle in both apps changed its stored
+    /// title and kept DRAWING the old one — tapping MUSIC muted the game while the pill
+    /// still read MUSIC ON.
+    ///
+    /// It hid for months because each app's styler re-set the same string the pill was
+    /// BUILT with, so nothing visibly changed until a tap. This asserts on the DRAWN
+    /// title, because `configuration.title` was correct throughout the bug — assert on
+    /// that and this test passes while the pill lies to the player.
+    @MainActor
+    func testPillTitleChangesActuallyRender() {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.isHidden = false
+        defer { window.isHidden = true }
+
+        let pill = HMMenu.makePill(symbol: "music.note", title: "MUSIC ON")
+        pill.frame = CGRect(x: 45, y: 100, width: 300, height: 38)
+        window.addSubview(pill)
+        window.layoutIfNeeded()
+        // Configuration content lands on the next UPDATE CYCLE, never inside
+        // layoutIfNeeded — every assertion here needs a run-loop turn first.
+        XCTAssertTrue(HMTest.poll(2) { pill.titleLabel?.text == "MUSIC ON" },
+                      "the pill never drew its initial title")
+
+        HMMenu.styleToggle(pill, on: false, onTitle: "MUSIC ON", offTitle: "MUSIC OFF")
+        window.layoutIfNeeded()
+        XCTAssertTrue(HMTest.poll(2) { pill.titleLabel?.text == "MUSIC OFF" },
+                      "the pill still DRAWS \"\(pill.titleLabel?.text ?? "nil")\" after being "
+                      + "styled to \"\(pill.configuration?.title ?? "nil")\" — a frozen toggle")
+        XCTAssertGreaterThan(pill.titleLabel?.frame.width ?? 0, 0,
+                             "the drawn title occupies no width")
+    }
+
     /// The OFF state must stay readable — a toggle you cannot read is one you
     /// cannot find your way back to.
     func testToggleOffStaysLegible() {

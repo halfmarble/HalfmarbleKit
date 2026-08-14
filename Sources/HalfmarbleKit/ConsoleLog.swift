@@ -88,9 +88,9 @@ public final class ConsoleLog: ObservableObject {
 
     /// Tag prefixes the app wants picked out, in priority order.
     ///
-    /// THE KIT CANNOT KNOW YOUR TAGS. This started life with one app's
-    /// `[qwen]`/`[kokoro]`/`[tool]` hardcoded, which is useless to the next app
-    /// and slightly worse than useless — it colours nothing and looks broken.
+    /// THE KIT CANNOT KNOW YOUR TAGS. This started life with one app's own
+    /// engine tags hardcoded, which is useless to the next app and slightly
+    /// worse than useless — it colours nothing while looking like it should.
     /// Apps set this once at startup:
     /// ```swift
     /// ConsoleLog.tints = [("[tool]", .green), ("[brain]", .orange)]

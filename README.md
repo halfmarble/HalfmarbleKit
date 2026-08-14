@@ -21,6 +21,9 @@ two menu-button implementations had already drifted apart.
 | `Texture` | The scale-1 renderer format for procedurally generated art that gets stretched — the rule that keeps a full-screen gradient from becoming a 21 MB bitmap. |
 | `Share` | The system share sheet, with the presenter walk and the iPad popover anchor that a missing `sourceView` turns into a crash. |
 | `PerfProbe` / `FPSTimelineView` / `StartupProf` | The FPS · RAM · BUILD diagnostic strip and startup profiling. |
+| `SessionLog` | A timestamped event log that survives being killed: write-through with `synchronizeFile` (SIGKILL flushes nothing for you), and rotation that **archives** rather than overwrites — the second promise the first version silently failed. CSV export, one row per event whatever the detail contains. |
+| `ConsoleLog` / `ConsoleView` | The in-app console. **Tees** stdout/stderr rather than redirecting them, so a tethered `devicectl --console` keeps working and third-party prints are captured too. Tag colours are per-app. |
+| `Footprint` | Phase-tagged memory logging on top of `PerfProbe` — *which phase* produced the peak, written before the kill rather than read off a gauge after it. An app with a second allocator (ML runtime, Metal pool) supplies it through one closure; the kit never imports a GPU framework. |
 | `Haptics` / `UISound` / `DefaultsKeys` / `Version` / `ReleaseChannel` | The small shared utilities. |
 | `HalfmarbleTestKit` | Test-only harnesses (imports XCTest). App **test** targets depend on this; app targets never do. |
 

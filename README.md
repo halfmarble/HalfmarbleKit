@@ -60,7 +60,9 @@ not.
 The tremor debounce in `MenuButtons.swift` — an input filter whose window is derived from the
 characteristic frequency of a hand tremor, scoped per control so it never eats a fast deliberate
 sequence — is published as a defensive publication and **dedicated to the public domain**:
-[PRIOR_ART_TREMOR_DEBOUNCE.md](PRIOR_ART_TREMOR_DEBOUNCE.md).
+[PRIOR_ART_TREMOR_DEBOUNCE.md](PRIOR_ART_TREMOR_DEBOUNCE.md), lodged in Technical Disclosure
+Commons at [dpubs_series/11329](https://www.tdcommons.org/dpubs_series/11329) so an examiner
+searching the usual databases will find it.
 
 It is there so the method stays freely practicable by anyone and cannot be patented by a third
 party. It is an accessibility technique and makes no health claim.

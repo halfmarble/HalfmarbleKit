@@ -6,7 +6,7 @@
 
 **Effective publication date:** 2026-08-09 — the date this document became publicly accessible in the HalfmarbleKit repository (`github.com/halfmarble/HalfmarbleKit`), which is its **first public disclosure** and therefore its governing prior-art date. It was deposited the same day in the Technical Disclosure Commons Defensive Publications Series, where it was still unpublished and login-gated at the moment the repository went public; the TDCommons posting supplies the indexed, examiner-searchable record and does **not** re-date this disclosure.
 
-**TDCommons:** submission **#12667**, deposited 2026-08-09 — _article number to be backfilled here once posted._
+**TDCommons:** posted 2026-08-11 as **[dpubs_series/11329](https://www.tdcommons.org/dpubs_series/11329)** (deposited 2026-08-09 as submission #12667). Recommended citation: ziemski, gerard, "Physiologically derived, per-control input debouncing for tremor-affected touch and key input", *Technical Disclosure Commons*, (August 11, 2026) https://www.tdcommons.org/dpubs_series/11329 — the indexed, examiner-searchable record. It does **not** re-date this disclosure, whose governing date remains 2026-08-09 as stated above.
 
 **Independent archival of the publication date.** A git repository cannot establish its own publication date — commit timestamps are author-settable and the hosting platform exposes no "made public at" field — so the date asserted above is corroborated by third-party, content-addressed records made on 2026-08-09:
 

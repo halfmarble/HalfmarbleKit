@@ -142,6 +142,18 @@ public final class HMAudioHost {
     /// `stateLock`: written on main from the hint notification and each configureSession(),
     /// read by the 20 Hz fader. SFX are deliberately unaffected — the game still speaks.
     private var otherAudioActive = false
+    /// AN INTERRUPTION IS IN PROGRESS (phone call, Siri, another app taking the
+    /// session). Set on `.began`, cleared on `.ended` just before the restart.
+    /// The engine is already stopped by the system when `.began` arrives, so this
+    /// is belt to `isRunning`'s braces: it keeps `requestStart` from even trying
+    /// for the duration, rather than for the nanoseconds between two statements.
+    /// Written on main (the interruption observer), read on main (requestStart).
+    private var interrupted = false
+    /// Music nodes with a start already queued onto main. The fader ticks at
+    /// 20 Hz and `node.isPlaying` does not flip until the queued block actually
+    /// runs, so without this every tick in the meantime would pile on another
+    /// redundant hop. Set membership only — never held across an AVFAudio call.
+    private var startsInFlight = Set<ObjectIdentifier>()
 
     // MARK: - Init
 
@@ -296,22 +308,68 @@ public final class HMAudioHost {
     /// pulling and resampling its loop forever, even at volume 0. Resumes
     /// mid-loop on the next fade-in — it's ambient, the seam is inaudible.
     ///
-    /// ACCEPTED TOCTOU (2026-07-26 audit; inherited from both ancestors): the
-    /// engine can stop between the `engine.isRunning` check and `play()` — an
-    /// interruption landing inside a 20 Hz tick's microsecond window — and
-    /// `play()` on a stopped engine raises. Kept as-is deliberately: the
-    /// window is vanishingly small, both ancestors shipped it for weeks, and
-    /// exception-guarding or hopping play() to main costs more than the risk.
-    /// Do not "simplify" the isRunning guard away — it is what makes the
-    /// window microseconds instead of the whole interruption.
+    /// THE TOCTOU IS NO LONGER ACCEPTED — IT FIRED (2026-08-14). A StringFusor
+    /// 1184 tester on iPhone 15 Pro Max / iOS 26.5.2 took a SIGABRT here:
+    ///
+    ///     AVAudioPlayerNodeImpl::StartImpl → -[AVAudioPlayerNode play]
+    ///       ← HMAudioHost.fade(_:toward:engine:)
+    ///       ← closure #1 in HMAudioHost.startMusicFader()
+    ///
+    /// `play()` on a stopped engine raises `required condition is false:
+    /// _engine->IsRunning()`, an ObjC exception Swift cannot catch, so it is a
+    /// crash and it takes the run and its unbanked score with it.
+    ///
+    /// The 2026-07-26 audit priced this window as "vanishingly small" — the
+    /// mis-estimate was calling it an interruption landing in a microsecond gap.
+    /// It is really a CROSS-THREAD race against our OWN recovery: the fader runs
+    /// on `halfmarble.music.fade` while every engine stop/start runs on main
+    /// (`handleConfigurationChange` does stop → configureSession → connect →
+    /// start, milliseconds wide). Between this thread's `isRunning` check and its
+    /// `play()` the fader can simply lose the CPU — an unbounded gap, not a
+    /// microsecond one — and main is stopping the engine in exactly that gap,
+    /// because a route change is when both are busy.
+    ///
+    /// The fix is to STOP RACING rather than to shrink the window: the start is
+    /// handed to main, which is the one thread that stops and starts the engine,
+    /// and re-checked there. Check and mutation now happen on the same thread as
+    /// every transition they could lose to, so our own recovery can no longer be
+    /// raced at all. What remains is the system stopping the engine between two
+    /// adjacent statements on main, which `interrupted` covers for the case that
+    /// actually does it. Locking instead was not an option: the header's
+    /// standing rule is never to hold `stateLock` across an AVFAudio call.
+    ///
+    /// The volume ramp deliberately stays on the fader thread — it is a plain
+    /// float write, it must stay smooth at 20 Hz, and it is not what raises.
     /// Pinned app-side (fade→pause→resume + recovery): ViroFlick's
-    /// GameEnergyTests and StringFusor's GameAudioHostTests — the twin suites.
+    /// GameEnergyTests and StringFusor's GameAudioHostTests — the twin suites,
+    /// both of which already poll rather than assume a synchronous start.
     private func fade(_ node: AVAudioPlayerNode, toward target: Float, engine: AVAudioEngine) {
-        if target > 0, !node.isPlaying, engine.isRunning { node.play() }
+        if target > 0, !node.isPlaying, engine.isRunning { requestStart(node, engine: engine) }
         node.volume += (target - node.volume) * 0.12
         if target == 0, node.volume < 0.004 {
             node.volume = 0
             if node.isPlaying { node.pause() }
+        }
+    }
+
+    /// Start one music node ON MAIN, re-checking there. See `fade`'s essay: main
+    /// owns every engine transition, so a check made here cannot be overtaken by
+    /// one. `startsInFlight` keeps the 20 Hz fader from queueing a fresh hop each
+    /// tick while an earlier one is still pending — `isPlaying` only flips when
+    /// the block runs.
+    private func requestStart(_ node: AVAudioPlayerNode, engine: AVAudioEngine) {
+        let key = ObjectIdentifier(node)
+        let queuedAlready = stateLock.withLock { !startsInFlight.insert(key).inserted }
+        if queuedAlready { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            // Clear the latch FIRST: every early return below must still let the
+            // next tick retry, or one interrupted start silences the channel for
+            // the rest of the session.
+            self.stateLock.withLock { _ = self.startsInFlight.remove(key) }
+            guard !self.stateLock.withLock({ self.interrupted }) else { return }
+            guard engine.isRunning, !node.isPlaying else { return }
+            node.play()
         }
     }
 
@@ -416,7 +474,14 @@ public final class HMAudioHost {
             let type = (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt)
                 .flatMap(AVAudioSession.InterruptionType.init(rawValue:))
             self?.debugMark?("audio: interruption \(type == .began ? "BEGAN" : type == .ended ? "ended" : "?")")
+            // `.began` now does real work: it latches `interrupted` so no queued
+            // start tries to play into an engine the system has already stopped
+            // (see fade's essay — this is the case that actually stops us from
+            // underneath). Only `.ended` clears it, and it clears BEFORE the
+            // restart so the fader's next tick can start the nodes again.
+            if type == .began { self?.stateLock.withLock { self?.interrupted = true } }
             guard type == .ended else { return }
+            self?.stateLock.withLock { self?.interrupted = false }
             self?.restartEngineIfNeeded()
         })
         observers.append(nc.addObserver(forName: UIApplication.didBecomeActiveNotification,
@@ -513,6 +578,13 @@ public final class HMAudioHost {
             outputChainStale = true                          // …and it will rewire before trying again
             return
         }
+        // A RUNNING ENGINE ENDS THE INTERRUPTION, whatever woke us. `.ended` is not
+        // guaranteed to arrive — a media-services reset or a foreground event can
+        // revive us with no matching end notification — and a latch that outlived
+        // its interruption would silence the music for the rest of the session,
+        // which is a worse bug than the crash it guards. Every revival path lands
+        // here, so this is the one place that can promise it clears.
+        stateLock.withLock { interrupted = false }
         for (node, loop) in zip(musicNodes, loopBuffers) {
             guard let loop else { continue }                 // load still running — it schedules itself
             node.stop()

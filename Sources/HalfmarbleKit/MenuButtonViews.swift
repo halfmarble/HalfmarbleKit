@@ -80,11 +80,16 @@ public struct HMPillButton: UIViewRepresentable {
     let title: String
     /// Glyph + label colour together — see HMMenu.makePill. Defaults to house white.
     let tint: UIColor
+    /// Breathe, to point a new player at this control. Uses the SAME
+    /// HMMenu.ctaPulse the CTA and ViroFlick's onboarding use — one pulse in the
+    /// house, not one per app.
+    let pulses: Bool
     let action: () -> Void
 
     public init(symbol: String, title: String, tint: UIColor = .white,
-                action: @escaping () -> Void) {
-        self.symbol = symbol; self.title = title; self.tint = tint; self.action = action
+                pulses: Bool = false, action: @escaping () -> Void) {
+        self.symbol = symbol; self.title = title; self.tint = tint
+        self.pulses = pulses; self.action = action
     }
 
     public func makeCoordinator() -> Coordinator { Coordinator(action: action) }
@@ -92,6 +97,8 @@ public struct HMPillButton: UIViewRepresentable {
     public func makeUIView(context: Context) -> UIButton {
         let b = HMMenu.makePill(symbol: symbol, title: title, tint: tint)
         b.addTarget(context.coordinator, action: #selector(Coordinator.tapped), for: .primaryActionTriggered)
+        context.coordinator.bind(b)
+        context.coordinator.setPulsing(pulses)
         return b
     }
     public func updateUIView(_ b: UIButton, context: Context) {
@@ -109,6 +116,8 @@ public struct HMPillButton: UIViewRepresentable {
             // the label while the icon keeps the colour it was built with.
             b.configuration?.image = HMMenu.pillSymbol(symbol, tint: tint)
         }
+        context.coordinator.bind(b)
+        context.coordinator.setPulsing(pulses)
     }
     public func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIButton,
                              context: Context) -> CGSize? {
@@ -118,7 +127,37 @@ public struct HMPillButton: UIViewRepresentable {
 
     @MainActor public final class Coordinator {
         var action: () -> Void
-        init(action: @escaping () -> Void) { self.action = action }
+        private weak var button: UIButton?
+        private var pulsing = false
+
+        init(action: @escaping () -> Void) {
+            self.action = action
+            // iOS STRIPS CALayer animations when the app backgrounds and never puts
+            // them back, so a repeating pulse comes back frozen — a button stuck at
+            // whatever opacity it was mid-breath, which reads as broken rather than
+            // as calm. ViroFlick learned this and re-arms its CTAs on activation;
+            // the kit does it here so no caller has to remember.
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(reArm),
+                name: UIApplication.didBecomeActiveNotification, object: nil)
+        }
+
+        func bind(_ b: UIButton) { button = b }
+
+        /// Idempotent: ctaPulse removes any running animation before adding, so a
+        /// SwiftUI update that re-asserts the same state does not restart the breath
+        /// mid-cycle.
+        func setPulsing(_ on: Bool) {
+            guard let b = button else { return }
+            if on { HMMenu.ctaPulse([b]) } else if pulsing { HMMenu.stopCTAPulse(b) }
+            pulsing = on
+        }
+
+        @objc private func reArm() {
+            guard pulsing, let b = button, b.window != nil else { return }
+            HMMenu.ctaPulse([b])
+        }
+
         @objc func tapped() { action() }
     }
 }

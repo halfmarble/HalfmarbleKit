@@ -93,9 +93,16 @@ public enum HMMenu {
     /// scored gets ORIENTATION lit in the same amber an armed track card wears, and
     /// the whole control has to carry it. ViroFlick's onboarding wants the same
     /// affordance, which is why this lives in the kit rather than in one app.
+    /// `borderTint` overrides the resting white hairline — pass a colour to make
+    /// the pill's OWN border carry an emphasis (StringFusor's first-run guidance
+    /// uses amber). It has to be the button's border rather than a ring drawn
+    /// around the button, or HMMenu.ctaPulse cannot reach it: the pulse animates
+    /// this button's layer, and anything outside that layer sits perfectly still
+    /// while the glyphs breathe.
     public static func makePill(symbol: String, title: String,
                                 height: CGFloat = HMMenu.pillHeight,
-                                tint: UIColor = .white) -> UIButton {
+                                tint: UIColor = .white,
+                                borderTint: UIColor? = nil) -> UIButton {
         let b = UIButton(type: .system)
         var cfg = UIButton.Configuration.plain()
         cfg.image = pillSymbol(symbol, tint: tint)
@@ -138,7 +145,7 @@ public enum HMMenu {
         // animation". It was the wrong diagnosis and it broke the shape — a
         // configured UIButton resets layer.cornerRadius on its own re-render, so
         // every pill gained a square backdrop behind its rounded self. Reverted.)
-        bg.strokeColor = UIColor.white.withAlphaComponent(0.55)
+        bg.strokeColor = borderTint ?? UIColor.white.withAlphaComponent(0.55)
         bg.strokeWidth = 1.5
         cfg.background = bg
         b.configuration = cfg

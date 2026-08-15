@@ -86,16 +86,23 @@ public struct HMPillButton: UIViewRepresentable {
     let pulses: Bool
     let action: () -> Void
 
+    /// A colour for the pill's OWN border (nil = the resting white hairline).
+    /// Emphasis has to live on the button, not in a ring drawn around it — the
+    /// house pulse animates the button's layer and cannot reach anything outside.
+    let borderTint: UIColor?
+
     public init(symbol: String, title: String, tint: UIColor = .white,
+                borderTint: UIColor? = nil,
                 pulses: Bool = false, action: @escaping () -> Void) {
         self.symbol = symbol; self.title = title; self.tint = tint
+        self.borderTint = borderTint
         self.pulses = pulses; self.action = action
     }
 
     public func makeCoordinator() -> Coordinator { Coordinator(action: action) }
 
     public func makeUIView(context: Context) -> UIButton {
-        let b = HMMenu.makePill(symbol: symbol, title: title, tint: tint)
+        let b = HMMenu.makePill(symbol: symbol, title: title, tint: tint, borderTint: borderTint)
         b.addTarget(context.coordinator, action: #selector(Coordinator.tapped), for: .primaryActionTriggered)
         context.coordinator.bind(b)
         context.coordinator.setPulsing(pulses)
@@ -108,6 +115,12 @@ public struct HMPillButton: UIViewRepresentable {
         // the rest of the session without this. Written only on a real change —
         // assigning baseForegroundColor unconditionally rebuilds the configuration on
         // every SwiftUI update.
+        // The BORDER is state too: StringFusor's guidance ends the moment a score
+        // lands, and a pill built amber would keep an amber border all session.
+        let wantStroke = borderTint ?? UIColor.white.withAlphaComponent(0.55)
+        if b.configuration?.background.strokeColor != wantStroke {
+            b.configuration?.background.strokeColor = wantStroke
+        }
         if b.configuration?.baseForegroundColor != tint {
             b.configuration?.baseForegroundColor = tint
             // The GLYPH must be re-baked, not just re-coloured: pillSymbol renders

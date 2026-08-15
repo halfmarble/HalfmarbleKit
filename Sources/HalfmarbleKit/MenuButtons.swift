@@ -116,7 +116,29 @@ public enum HMMenu {
         // 0.75 follows Apple's GameKit banners: near-opaque dark, not a polite tint.
         bg.backgroundColor = UIColor.black.withAlphaComponent(0.75)
         bg.cornerRadius = height / 2
-        bg.strokeColor = UIColor.white.withAlphaComponent(0.3)
+        // 0.55, THE CTA'S OWN BORDER ALPHA (2026-08-15). At 0.30 this hairline was
+        // there but its BREATH was not readable: gerard, "the buttons inside
+        // elements pulse, but the buttons outline does not", then "look at how
+        // viroflick does it, its BEGIN button does what i want".
+        //
+        // The pulse was never missing. HMMenu.ctaPulse animates the button layer's
+        // opacity, and measuring eight frames across the breath shows the outline
+        // moving the whole time — 64.4 to 71.3 mean brightness. It is just that a
+        // 30%-white hairline moving 7 levels is invisible while the amber glyphs
+        // beside it swing 25.
+        //
+        // What makes BEGIN read is its COLOURS, not its construction: it fills with
+        // white 0.13 — LIGHTER than the sky, so fading it visibly dims the capsule —
+        // and borders at white 0.55. This pill fills with black 0.75, and fading
+        // black against a black sky has nowhere to go, so the border is the only
+        // part that CAN show the breath. Matching the CTA's 0.55 gives it enough
+        // contrast to do that.
+        //
+        // (An earlier attempt moved the fill and stroke onto the layer to "fix the
+        // animation". It was the wrong diagnosis and it broke the shape — a
+        // configured UIButton resets layer.cornerRadius on its own re-render, so
+        // every pill gained a square backdrop behind its rounded self. Reverted.)
+        bg.strokeColor = UIColor.white.withAlphaComponent(0.55)
         bg.strokeWidth = 1.5
         cfg.background = bg
         b.configuration = cfg

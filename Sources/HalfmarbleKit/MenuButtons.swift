@@ -75,17 +75,28 @@ public enum HMMenu {
             .outlined(width: 1.5)
     }
 
-    /// A flat, uniform action pill — white SF Symbol + white outlined text on a
-    /// near-opaque dark capsule.
+    /// A flat, uniform action pill — SF Symbol + outlined text on a near-opaque dark
+    /// capsule.
+    ///
+    /// `tint` colours the GLYPH AND THE LABEL TOGETHER — baseForegroundColor feeds
+    /// both, which is the point: a half-tinted pill (amber ring, white text) reads as
+    /// a rendering fault rather than emphasis. Defaults to the house white, so every
+    /// existing caller is untouched.
+    ///
+    /// Added for StringFusor's first-run guidance (2026-08-15): a player who has never
+    /// scored gets ORIENTATION lit in the same amber an armed track card wears, and
+    /// the whole control has to carry it. ViroFlick's onboarding wants the same
+    /// affordance, which is why this lives in the kit rather than in one app.
     public static func makePill(symbol: String, title: String,
-                                height: CGFloat = HMMenu.pillHeight) -> UIButton {
+                                height: CGFloat = HMMenu.pillHeight,
+                                tint: UIColor = .white) -> UIButton {
         let b = UIButton(type: .system)
         var cfg = UIButton.Configuration.plain()
         cfg.image = pillSymbol(symbol)
         cfg.title = title
         cfg.imagePadding = 6
         cfg.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12)
-        cfg.baseForegroundColor = .white
+        cfg.baseForegroundColor = tint
         // The transformer survives later `configuration.title` mutations, so the
         // stroke lives here rather than in an attributedTitle.
         cfg.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { c in

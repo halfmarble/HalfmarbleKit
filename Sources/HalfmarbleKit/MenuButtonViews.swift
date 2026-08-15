@@ -78,21 +78,32 @@ public struct HMHintLabel: UIViewRepresentable {
 public struct HMPillButton: UIViewRepresentable {
     let symbol: String
     let title: String
+    /// Glyph + label colour together — see HMMenu.makePill. Defaults to house white.
+    let tint: UIColor
     let action: () -> Void
 
-    public init(symbol: String, title: String, action: @escaping () -> Void) {
-        self.symbol = symbol; self.title = title; self.action = action
+    public init(symbol: String, title: String, tint: UIColor = .white,
+                action: @escaping () -> Void) {
+        self.symbol = symbol; self.title = title; self.tint = tint; self.action = action
     }
 
     public func makeCoordinator() -> Coordinator { Coordinator(action: action) }
 
     public func makeUIView(context: Context) -> UIButton {
-        let b = HMMenu.makePill(symbol: symbol, title: title)
+        let b = HMMenu.makePill(symbol: symbol, title: title, tint: tint)
         b.addTarget(context.coordinator, action: #selector(Coordinator.tapped), for: .primaryActionTriggered)
         return b
     }
     public func updateUIView(_ b: UIButton, context: Context) {
         context.coordinator.action = action
+        // The tint is STATE, not just construction: StringFusor's first-run guidance
+        // ends the moment a score lands, and a pill built amber would stay amber for
+        // the rest of the session without this. Written only on a real change —
+        // assigning baseForegroundColor unconditionally rebuilds the configuration on
+        // every SwiftUI update.
+        if b.configuration?.baseForegroundColor != tint {
+            b.configuration?.baseForegroundColor = tint
+        }
     }
     public func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIButton,
                              context: Context) -> CGSize? {

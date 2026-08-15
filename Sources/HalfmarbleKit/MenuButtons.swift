@@ -67,21 +67,27 @@ public enum HMMenu {
     // MARK: Builders
 
     /// The pill's SF Symbol, tinted white and given a black outline.
-    public static func pillSymbol(_ symbol: String) -> UIImage? {
+    /// `tint` must be passed here, not left to the button: the glyph is baked
+    /// `.alwaysOriginal`, which exists precisely to IGNORE baseForegroundColor (so a
+    /// press highlight cannot wash the symbol out). That is why tinting the pill via
+    /// the configuration alone coloured the label and left the icon white.
+    public static func pillSymbol(_ symbol: String, tint: UIColor = .white) -> UIImage? {
         guard !symbol.isEmpty else { return nil }
         let cfg = UIImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
         return UIImage(systemName: symbol, withConfiguration: cfg)?
-            .withTintColor(.white, renderingMode: .alwaysOriginal)
+            .withTintColor(tint, renderingMode: .alwaysOriginal)
             .outlined(width: 1.5)
     }
 
     /// A flat, uniform action pill — SF Symbol + outlined text on a near-opaque dark
     /// capsule.
     ///
-    /// `tint` colours the GLYPH AND THE LABEL TOGETHER — baseForegroundColor feeds
-    /// both, which is the point: a half-tinted pill (amber ring, white text) reads as
-    /// a rendering fault rather than emphasis. Defaults to the house white, so every
-    /// existing caller is untouched.
+    /// `tint` colours the GLYPH AND THE LABEL TOGETHER — a half-tinted pill (amber
+    /// ring, white text) reads as a rendering fault rather than emphasis. It takes
+    /// TWO writes, which is the trap: baseForegroundColor carries the label, but the
+    /// symbol is baked `.alwaysOriginal` by pillSymbol and ignores it. Tinting only
+    /// the configuration is what shipped an amber label beside a white atom.
+    /// Defaults to the house white, so every existing caller is untouched.
     ///
     /// Added for StringFusor's first-run guidance (2026-08-15): a player who has never
     /// scored gets ORIENTATION lit in the same amber an armed track card wears, and
@@ -92,7 +98,7 @@ public enum HMMenu {
                                 tint: UIColor = .white) -> UIButton {
         let b = UIButton(type: .system)
         var cfg = UIButton.Configuration.plain()
-        cfg.image = pillSymbol(symbol)
+        cfg.image = pillSymbol(symbol, tint: tint)
         cfg.title = title
         cfg.imagePadding = 6
         cfg.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12)

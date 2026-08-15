@@ -103,6 +103,11 @@ public struct HMPillButton: UIViewRepresentable {
         // every SwiftUI update.
         if b.configuration?.baseForegroundColor != tint {
             b.configuration?.baseForegroundColor = tint
+            // The GLYPH must be re-baked, not just re-coloured: pillSymbol renders
+            // `.alwaysOriginal`, so the image carries its own colour and no
+            // configuration change can reach it. Miss this and a tint change repaints
+            // the label while the icon keeps the colour it was built with.
+            b.configuration?.image = HMMenu.pillSymbol(symbol, tint: tint)
         }
     }
     public func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIButton,

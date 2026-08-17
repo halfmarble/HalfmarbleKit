@@ -1,3 +1,14 @@
 .build/
 .swiftpm/
 .DS_Store
+
+# Xcode build output. This package is consumed by ViroFlick and StringFusor, so it gets
+# built through Xcode as often as through SwiftPM. .dd/ is the -derivedDataPath name used
+# in this tree (gymrhythm-spike/build.sh); unignored on ViroFlick it became 3001 of 3289
+# tracked files on 2026-08-16. Listed BEFORE anyone builds that way here — see
+# ~/Projects/CLAUDE.md, "Build output never enters a repo".
+DerivedData/
+.dd/
+build/
+xcuserdata/
+*.xcuserstate

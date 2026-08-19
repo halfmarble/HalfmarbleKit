@@ -30,7 +30,13 @@ public enum HMBrand {
     /// retype. Do not edit these except against the signed agreement.
     static let namedPledge = [
         "5% of software net profits pledged:",
-        "2.5% to Michael J. Fox Foundation (MJFF)",
+        // Lex Knipper (MJFF Community Fundraising) asked for exactly this framing
+        // on 2026-08-19, after checking with their Communications Team; it replaces
+        // "2.5% to Michael J. Fox Foundation (MJFF)". Split across two entries
+        // because each entry renders on its own fixed 14pt row — as one string it
+        // overflows the row at AvenirNext-Medium 10 on every phone width.
+        "2.5% to Team Fox, the grassroots fundraising arm",
+        "of The Michael J. Fox Foundation",
         "2.5% to Public Health Collaboration (PHC)",   // "(PHC)", not "(PHC UK)" — gerard, 2026-07-31
         // The Team Fox terms require the third-party relationship to be
         // explicit on all promotional surfaces (agreement wording pass,

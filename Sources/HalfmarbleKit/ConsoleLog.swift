@@ -74,46 +74,7 @@ public final class ConsoleLog: ObservableObject {
         if partial.count > 2000 { append(partial); partial = "" }
     }
 
-    /// LAZY TIME MARKS (founder 2026-08-22). A console with no clock cannot be
-    /// read back against a drive: "she went quiet for a while" and "she went
-    /// quiet for eleven minutes" are different reports, and only one of them is
-    /// evidence.
-    ///
-    /// The rule is deliberately not "a mark every minute". A timer-driven mark
-    /// fills a silent console with stamps and buries the activity you came to
-    /// read — the log of an idle app would be nothing but clock. Instead the
-    /// mark is written LAZILY, by the next line that earns it:
-    ///
-    ///   * a line arriving 60 s or more after the last mark writes a mark FIRST,
-    ///     then itself;
-    ///   * silence writes nothing, however long it lasts;
-    ///   * so a gap in the console is always bounded by the two marks around it,
-    ///     and every mark is immediately followed by the activity that caused it.
-    ///
-    /// The first line of a session always gets one, so the console opens with a
-    /// time rather than with context-free text.
-    public static let markInterval: TimeInterval = 60
-
-    private var lastMark: Date?
-
-    private static let markFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm:ss"
-        return f
-    }()
-
-    /// `··` prefix so `tint` can pick it out, and so a reader scanning the left
-    /// edge sees the marks without reading them.
-    private static func markLine(_ at: Date) -> String {
-        "·· \(markFormatter.string(from: at)) ··························"
-    }
-
     private func append(_ line: String) {
-        let now = Date()
-        if lastMark.map({ now.timeIntervalSince($0) >= Self.markInterval }) ?? true {
-            lines.append(Self.markLine(now))
-            lastMark = now
-        }
         lines.append(line)
         if lines.count > Self.capacity { lines.removeFirst(lines.count - Self.capacity) }
     }

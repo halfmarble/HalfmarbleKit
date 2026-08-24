@@ -43,9 +43,36 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertEqual(names.last, "s-1755300000.csv")
     }
 
-    /// Twelve, not two. Named so that lowering it is a deliberate act.
-    func testKeepSessionsIsGenerousEnoughForADayOfLaunches() {
-        XCTAssertGreaterThanOrEqual(SessionLog.keepSessions, 12)
+    /// NOTHING IS DELETED (founder 2026-08-24: "stop rotating and loosing old
+    /// logs, keep them all"). Twelve was already the second answer to this —
+    /// the first kept two — and both are the same mistake at different sizes.
+    func testNoSessionIsEverPruned() {
+        XCTAssertEqual(SessionLog.keepSessions, Int.max,
+                       "a cap is back; a drive log is the measurement instrument")
+        // The selector still works, it simply never has anything to hand over.
+        let many = (1...500).map { "dash-2026-08-24-\(String(format: "%06d", $0)).csv" }
+        XCTAssertGreaterThan(SessionLog.archiveNames(in: many, stem: "dash").count,
+                             12, "the selector stopped seeing archives at all")
+    }
+
+    /// A NAME THAT READS AS A DATE AND SORTS AS A CLOCK (founder 2026-08-24:
+    /// "use dates and time in their names, so you can corelate them to when the
+    /// log was written"). Both halves matter: `archiveNames` sorts these as
+    /// plain text, so a format that reads well but sorts wrong would order the
+    /// archives by nothing in particular.
+    func testTheStampIsReadableAndSortsOldestFirst() {
+        let t0 = Date(timeIntervalSince1970: 1_787_000_000)
+        let a = SessionLog.stamp(t0)
+        let b = SessionLog.stamp(t0.addingTimeInterval(3600))
+        let c = SessionLog.stamp(t0.addingTimeInterval(86_400 * 40))
+        XCTAssertEqual(a.count, "yyyy-MM-dd-HHmmss".count, "unexpected shape: \(a)")
+        XCTAssertTrue(a.hasPrefix("20"), "not a readable year: \(a)")
+        XCTAssertLessThan(a, b, "an hour later must sort later: \(a) vs \(b)")
+        XCTAssertLessThan(b, c, "a month later must sort later: \(b) vs \(c)")
+        // ...and it survives the selector's sort, which is what depends on it.
+        let names = SessionLog.archiveNames(
+            in: ["s-\(c).csv", "s-\(a).csv", "s-\(b).csv"], stem: "s")
+        XCTAssertEqual(names, ["s-\(a).csv", "s-\(b).csv", "s-\(c).csv"])
     }
 
     // MARK: - SessionLog: one row is one line

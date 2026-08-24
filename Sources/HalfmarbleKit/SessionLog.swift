@@ -60,15 +60,50 @@ public final class SessionLog: ObservableObject {
     private var t0: Date?
 
     /// Filename stem for this app's logs — `<stem>-live.csv`,
-    /// `<stem>-previous.csv`, `<stem>-<unixtime>.csv`. Set once at startup.
+    /// `<stem>-previous.csv`, `<stem>-<yyyy-MM-dd-HHmmss>.csv`. Set once at
+    /// startup.
     /// Defaulted so a misconfigured app still logs somewhere findable rather
     /// than silently not at all.
     public let stem: String
 
-    /// Sessions kept on disk. Bounded so a long-lived install does not
-    /// accumulate forever; generous enough that a whole day of testing
-    /// survives. Twelve, because two was the bug.
-    public static let keepSessions = 12
+    /// NOTHING IS DELETED (founder 2026-08-24: "stop rotating and loosing old
+    /// logs, keep them all").
+    ///
+    /// This was 12, and 12 was already the SECOND answer to this problem — the
+    /// first kept two. Both are the same mistake at different sizes: a drive
+    /// log is the U1 measurement instrument, and the one that gets deleted is
+    /// always the one somebody turns out to need. It cost real evidence the day
+    /// the cap was removed: a spoken pre-flight rotated away the reply the
+    /// founder was asking about, mid-diagnosis.
+    ///
+    /// The files are a few kilobytes of text. A year of daily driving is
+    /// megabytes, against an app that ships 4.6 GB of model weights. There was
+    /// never a storage argument.
+    ///
+    /// Kept as a symbol because `pruneArchives` and its tests still reference
+    /// the idea, and because a future cap should have to reintroduce the
+    /// mechanism deliberately rather than by changing a number.
+    public static let keepSessions = Int.max
+
+    /// A stamp that reads as a date and still sorts as a clock (founder
+    /// 2026-08-24: "use dates and time in their names, so you can corelate them
+    /// to when the log was written").
+    ///
+    /// `dashspike-1787514355.csv` is unreadable — nobody can tell which drive
+    /// that was without converting it, and the whole reason to open an archive
+    /// is that you remember roughly WHEN something happened.
+    /// `dashspike-2026-08-24-110230.csv` says so, and zero-padded
+    /// year-month-day-hhmmss still sorts oldest-first as plain text, which
+    /// `archiveNames` depends on.
+    ///
+    /// LOCAL TIME, deliberately. The correlation being made is against a human
+    /// memory of a drive, and that memory is in the driver's own timezone.
+    public nonisolated static func stamp(_ date: Date = Date()) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd-HHmmss"
+        return f.string(from: date)
+    }
 
     public init(stem: String = "session") {
         self.stem = stem
@@ -124,8 +159,7 @@ public final class SessionLog: ObservableObject {
         // Roll the previous session into a DATED ARCHIVE rather than a single
         // slot the next launch overwrites — promise 2 above.
         if FileManager.default.fileExists(atPath: url.path) {
-            let stamp = Int(Date().timeIntervalSince1970)
-            let archived = dir.appendingPathComponent("\(stem)-\(stamp).csv")
+            let archived = dir.appendingPathComponent("\(stem)-\(Self.stamp()).csv")
             try? FileManager.default.moveItem(at: url, to: archived)
             // …and keep the previous-slot alias, which scripts already know.
             if let keep = previousURL {
@@ -204,7 +238,7 @@ public final class SessionLog: ObservableObject {
     /// A snapshot for the share sheet — see `Share`.
     public func exportURL() -> URL? {
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("\(stem)-\(Int(Date().timeIntervalSince1970)).csv")
+            .appendingPathComponent("\(stem)-\(Self.stamp()).csv")
         try? csv().write(to: url, atomically: true, encoding: .utf8)
         return url
     }

@@ -30,24 +30,23 @@ public enum HMBrand {
     /// retype. Do not edit these except against the signed agreement.
     static let namedPledge = [
         "5% of software net profits pledged:",
-        // Lex Knipper (MJFF Community Fundraising) asked on 2026-08-19, after
-        // checking with their Communications Team, that this name Team Fox rather
-        // than the Foundation; it replaces "2.5% to Michael J. Fox Foundation
-        // (MJFF)".
+        // Names Team Fox rather than the Foundation, at the Foundation's request;
+        // it replaces "2.5% to Michael J. Fox Foundation (MJFF)".
         //
-        // "PROGRAM", NOT "ARM" — and the question is CLOSED. Lex's 08-19 note said
-        // "arm"; the sentence MJFF approved on 2026-08-04 for the App Store
-        // listings says "program". Asked which wins, she answered on 2026-08-21:
-        // "Either word works and is completely up to you which you choose to use."
-        // So it is halfmarble's call, and gerard chose "program" on 2026-08-29 so
-        // every surface matches the App Store listings. Both words are approved —
-        // do not "correct" this back to "arm" on the strength of the 08-19 note.
+        // "PROGRAM", NOT "ARM" — and the question is CLOSED. Both words are
+        // Foundation-approved, and halfmarble chose "program" (2026-08-29) so that
+        // this matches the App Store listings, halfmarble.com and the ViroFlick
+        // README. An older approved phrasing said "arm"; do NOT "correct" this back
+        // to it on the strength of finding that wording somewhere else.
         //
         // The Foundation's name stays SHORT here. The App Store sentence spells it
-        // "The Michael J. Fox Foundation for Parkinson's Research", but the in-app
-        // pledge was submitted to MJFF as a deliberately shorter form (gerard to
-        // Lex, 2026-07-30: "In the app and on halfmarble.com, space is tighter") and
-        // approved that way. Only the WORD was ever in question.
+        // "The Michael J. Fox Foundation for Parkinson's Research", but this in-app
+        // block was submitted and approved as a deliberately shorter form, because
+        // the row is narrow. Only the one WORD was ever in question.
+        //
+        // Approval provenance — who approved what, when — is in the private record,
+        // never in this file: see legal/mjff/ and people/MJFF/. This repo is PUBLIC
+        // and a tag ships this comment verbatim to consumers.
         //
         // Split across two entries because each renders on its own fixed 14pt row —
         // as one string it overflows the row at AvenirNext-Medium 10 on every phone

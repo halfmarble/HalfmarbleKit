@@ -20,6 +20,7 @@ two menu-button implementations had already drifted apart.
 | `Frost` / `Outline` / `OutlineSwiftUI` | The two blur recipes and the outline treatment, so every surface matches. |
 | `Texture` | The scale-1 renderer format for procedurally generated art that gets stretched — the rule that keeps a full-screen gradient from becoming a 21 MB bitmap. |
 | `Share` | The system share sheet, with the presenter walk and the iPad popover anchor that a missing `sourceView` turns into a crash. |
+| `BarStrip` | A row of bars drawn in one `Canvas` pass, so bar count stops being a per-frame cost — the `HStack` of N capsules it replaces re-laid-out all N on every tick. Deliberately knows nothing about what it plots: the caller supplies a 0…1 height and a colour per bar, which is what lets one view serve a microphone trace and a thermal-tinted memory trace without either leaking into the other. |
 | `PerfProbe` / `FPSTimelineView` / `StartupProf` | The FPS · RAM · BUILD diagnostic strip and startup profiling. |
 | `SessionLog` | A timestamped event log that survives being killed: write-through with `synchronizeFile` (SIGKILL flushes nothing for you), and rotation that **archives** rather than overwrites — the second promise the first version silently failed. CSV export, one row per event whatever the detail contains. |
 | `ConsoleLog` / `ConsoleView` | The in-app console. **Tees** stdout/stderr rather than redirecting them, so a tethered `devicectl --console` keeps working and third-party prints are captured too. Tag colours are per-app. |
@@ -49,6 +50,14 @@ xcodebuild test -scheme HalfmarbleKit-Package -destination 'platform=iOS Simulat
 `HalfmarbleKit-Package`, not `HalfmarbleKit`: the per-target scheme SwiftPM generates has no test
 action, so the obvious spelling fails with "Scheme HalfmarbleKit is not currently configured for
 the test action". The `-Package` scheme is the one that carries the test targets.
+
+A simulator NAME can match more than one installed device — `xcrun simctl list devices available`
+shows the duplicates — and xcodebuild then picks one for you. Where that matters, target the UDID
+instead:
+
+```bash
+xcodebuild test -scheme HalfmarbleKit-Package -destination 'platform=iOS Simulator,id=<UDID>'
+```
 
 ## A note on the comments
 

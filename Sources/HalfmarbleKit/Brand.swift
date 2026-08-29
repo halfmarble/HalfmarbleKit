@@ -44,6 +44,10 @@ public enum HMBrand {
         // block was submitted and approved as a deliberately shorter form, because
         // the row is narrow. Only the one WORD was ever in question.
         //
+        // Approval provenance — who approved what, when — is kept in halfmarble's
+        // private record, never in this file. This repo is PUBLIC and a tag ships
+        // this comment verbatim to consumers.
+        //
         // Split across two entries because each renders on its own fixed 14pt row —
         // as one string it overflows the row at AvenirNext-Medium 10 on every phone
         // width. "program" costs 4 characters more than "arm"; at 52 characters the

@@ -30,12 +30,30 @@ public enum HMBrand {
     /// retype. Do not edit these except against the signed agreement.
     static let namedPledge = [
         "5% of software net profits pledged:",
-        // Lex Knipper (MJFF Community Fundraising) asked for exactly this framing
-        // on 2026-08-19, after checking with their Communications Team; it replaces
-        // "2.5% to Michael J. Fox Foundation (MJFF)". Split across two entries
-        // because each entry renders on its own fixed 14pt row — as one string it
-        // overflows the row at AvenirNext-Medium 10 on every phone width.
-        "2.5% to Team Fox, the grassroots fundraising arm",
+        // Lex Knipper (MJFF Community Fundraising) asked on 2026-08-19, after
+        // checking with their Communications Team, that this name Team Fox rather
+        // than the Foundation; it replaces "2.5% to Michael J. Fox Foundation
+        // (MJFF)".
+        //
+        // "PROGRAM", NOT "ARM" — and the question is CLOSED. Lex's 08-19 note said
+        // "arm"; the sentence MJFF approved on 2026-08-04 for the App Store
+        // listings says "program". Asked which wins, she answered on 2026-08-21:
+        // "Either word works and is completely up to you which you choose to use."
+        // So it is halfmarble's call, and gerard chose "program" on 2026-08-29 so
+        // every surface matches the App Store listings. Both words are approved —
+        // do not "correct" this back to "arm" on the strength of the 08-19 note.
+        //
+        // The Foundation's name stays SHORT here. The App Store sentence spells it
+        // "The Michael J. Fox Foundation for Parkinson's Research", but the in-app
+        // pledge was submitted to MJFF as a deliberately shorter form (gerard to
+        // Lex, 2026-07-30: "In the app and on halfmarble.com, space is tighter") and
+        // approved that way. Only the WORD was ever in question.
+        //
+        // Split across two entries because each renders on its own fixed 14pt row —
+        // as one string it overflows the row at AvenirNext-Medium 10 on every phone
+        // width. "program" costs 4 characters more than "arm"; at 52 characters the
+        // first line still clears the ~60 that fit at 375pt.
+        "2.5% to Team Fox, the grassroots fundraising program",
         "of The Michael J. Fox Foundation",
         "2.5% to Public Health Collaboration (PHC)",   // "(PHC)", not "(PHC UK)" — gerard, 2026-07-31
         // The Team Fox terms require the third-party relationship to be

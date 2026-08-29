@@ -31,10 +31,24 @@ public enum HMBrand {
     static let namedPledge = [
         "5% of software net profits pledged:",
         // Names Team Fox rather than the Foundation, at the Foundation's request;
-        // it replaces "2.5% to Michael J. Fox Foundation (MJFF)". Split across two
-        // entries because each entry renders on its own fixed 14pt row — as one
-        // string it overflows the row at AvenirNext-Medium 10 on every phone width.
-        "2.5% to Team Fox, the grassroots fundraising arm",
+        // it replaces "2.5% to Michael J. Fox Foundation (MJFF)".
+        //
+        // "PROGRAM", NOT "ARM" — and the question is CLOSED. Both words are
+        // Foundation-approved, and halfmarble chose "program" (2026-08-29) so that
+        // this matches the App Store listings, halfmarble.com and the ViroFlick
+        // README. An older approved phrasing said "arm"; do NOT "correct" this back
+        // to it on the strength of finding that wording somewhere else.
+        //
+        // The Foundation's name stays SHORT here. The App Store sentence spells it
+        // "The Michael J. Fox Foundation for Parkinson's Research", but this in-app
+        // block was submitted and approved as a deliberately shorter form, because
+        // the row is narrow. Only the one WORD was ever in question.
+        //
+        // Split across two entries because each renders on its own fixed 14pt row —
+        // as one string it overflows the row at AvenirNext-Medium 10 on every phone
+        // width. "program" costs 4 characters more than "arm"; at 52 characters the
+        // first line still clears the ~60 that fit at 375pt.
+        "2.5% to Team Fox, the grassroots fundraising program",
         "of The Michael J. Fox Foundation",
         "2.5% to Public Health Collaboration (PHC)",   // "(PHC)", not "(PHC UK)" — gerard, 2026-07-31
         // The Team Fox terms require the third-party relationship to be

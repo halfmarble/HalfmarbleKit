@@ -1,0 +1,53 @@
+{
+  "identifier" : "9E7B1C40",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "6100000001",
+      "localizations" : [
+        {
+          "description" : "The kit's test unlock. Not a shipping product.",
+          "displayName" : "Kit Test Unlock",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.halfmarble.kit.tests.unlock",
+      "referenceName" : "Kit Test Unlock",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "1.99",
+      "familyShareable" : false,
+      "internalID" : "6100000002",
+      "localizations" : [
+        {
+          "description" : "A second product, so the updates listener can be proved to ignore it.",
+          "displayName" : "Kit Other Unlock",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.halfmarble.kit.tests.other",
+      "referenceName" : "Kit Other Unlock",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

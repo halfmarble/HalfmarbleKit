@@ -56,15 +56,28 @@ public enum Footprint {
     /// The phase is padded to a fixed width because these lines are READ IN
     /// COLUMNS — a dozen of them scrolling past, and the eye is looking for the
     /// number that jumped, not the label.
+    /// How a line reaches the console. Default is `print`, which is what every
+    /// consumer has always got. An app with its own console — padded tags, a
+    /// unified-log route, colour by family — sets this once at startup and
+    /// these lines join the rest instead of sitting outside the column.
+    ///
+    /// Two arguments, not one, because the tag is the part an app may want to
+    /// rename or pad; joining them here would leave nothing to align on.
+    public static var emit: ((_ tag: String, _ message: String) -> Void)?
+
+    public static var tag = "mem"
+
     public static func log(_ phase: String) {
         let foot = mb().map { "\($0) MB" } ?? "unknown"
         let padded = phase.padding(toLength: max(18, phase.count), withPad: " ",
                                    startingAt: 0)
-        guard let e = extra?() else {
-            print("[mem] \(padded) footprint=\(foot)")
-            return
+        let body: String
+        if let e = extra?() {
+            body = "\(padded) footprint=\(foot) \(e.name) active=\(e.active) MB "
+                 + "peak=\(e.peak) MB (non-\(e.name) \((mb() ?? 0) - e.active) MB)"
+        } else {
+            body = "\(padded) footprint=\(foot)"
         }
-        print("[mem] \(padded) footprint=\(foot) \(e.name) active=\(e.active) MB "
-              + "peak=\(e.peak) MB (non-\(e.name) \((mb() ?? 0) - e.active) MB)")
+        if let emit { emit(tag, body) } else { print("[\(tag)] \(body)") }
     }
 }

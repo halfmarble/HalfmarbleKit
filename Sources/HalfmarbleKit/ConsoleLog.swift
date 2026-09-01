@@ -57,7 +57,11 @@ public final class ConsoleLog: ObservableObject {
             Task { @MainActor in ConsoleLog.shared.ingest(text) }
         }
         pipe = p
-        print("[console] in-app console attached")
+        if let emit = Footprint.emit {
+            emit("console", "in-app console attached")
+        } else {
+            print("[console] in-app console attached")
+        }
     }
 
     /// Chunks arrive on arbitrary boundaries — hold the tail until its newline,

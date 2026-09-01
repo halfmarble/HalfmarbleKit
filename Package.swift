@@ -40,6 +40,12 @@ let package = Package(
         // fails with "Scheme HalfmarbleKit is not currently configured for the
         // test action", which reads like a broken checkout rather than the
         // wrong scheme name.
-        .testTarget(name: "HalfmarbleKitTests", dependencies: ["HalfmarbleKit"]),
+        // `.process` flattens Resources/ into the bundle root, so
+        // Bundle.module.url(forResource:"KitStore", withExtension:"storekit")
+        // resolves. `.copy` would preserve the subdirectory and the lookup
+        // would return nil — which surfaces as a file-not-found that reads
+        // like a broken checkout rather than a packaging choice.
+        .testTarget(name: "HalfmarbleKitTests", dependencies: ["HalfmarbleKit"],
+                    resources: [.process("Resources")]),
     ]
 )

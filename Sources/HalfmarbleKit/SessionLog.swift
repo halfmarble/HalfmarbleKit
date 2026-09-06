@@ -127,14 +127,42 @@ public final class SessionLog: ObservableObject {
         add("start", header)
     }
 
-    public func add(_ kind: String, _ detail: String) {
+    /// Record one event. **Safe to call from any thread.**
+    ///
+    /// This used to be main-actor isolated like the rest of the class, and a
+    /// host app handed it to a synthesis engine's completion callback — a plain
+    /// `(String) -> Void` slot, which Swift 5 lets a main-actor closure fill
+    /// with nothing at runtime enforcing the promise. The engine invoked it on
+    /// its own serial queue. Appending to a `@Published` array off the main
+    /// thread takes Combine's publisher lock and then asks SwiftUI for its view
+    /// graph lock; the main thread, mid-update from a timer-driven view, held
+    /// the graph lock and was asking for the publisher lock to record an event
+    /// of its own. Each waited for the other, forever. The app sat with its
+    /// mouth open for twelve minutes, alive and silent, with no crash report —
+    /// the one failure a logger that exists to survive crashes cannot log.
+    ///
+    /// So: the event is stamped HERE, at the moment of the call, and recorded
+    /// on the main actor — synchronously when the caller is already there, so
+    /// nothing about ordering or immediacy changes for the common case, and
+    /// through the main queue otherwise, which keeps events in arrival order
+    /// and keeps the file handle on one thread. An off-main caller pays a hop
+    /// of a few milliseconds and its row still carries the time it happened.
+    public nonisolated func add(_ kind: String, _ detail: String) {
         let e = LogEvent(t: Date(), kind: kind, detail: detail)
+        if Thread.isMainThread {
+            MainActor.assumeIsolated { record(e) }
+        } else {
+            DispatchQueue.main.async { MainActor.assumeIsolated { self.record(e) } }
+        }
+    }
+
+    private func record(_ e: LogEvent) {
         events.append(e)
         write(row(e))
     }
 
     /// A one-tap failure marker.
-    public func flag(_ name: String) { add("flag:\(name)", "") }
+    public nonisolated func flag(_ name: String) { add("flag:\(name)", "") }
 
     // MARK: - The copy that survives a kill
 

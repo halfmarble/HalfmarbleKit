@@ -225,13 +225,59 @@ public final class SessionLog: ObservableObject {
             .sorted()                        // timestamped name sorts by age
     }
 
+    // MARK: - What a row costs
+
+    /// Time spent inside `write` below: the `write(2)` and the `fsync(2)` it
+    /// makes, added up since process start.
+    ///
+    /// This class is `@MainActor` and `add` hops here, so EVERY row is written
+    /// on the thread that draws. That is a deliberate trade for promise 1 at
+    /// the top of this file, and it is worth knowing the size of rather than
+    /// arguing about: on a quiet APFS volume an fsync answers in tens of
+    /// microseconds, and behind a concurrent writer it can reach tens of
+    /// milliseconds. An app that logs at a few hertz wants that number from
+    /// its own hardware BEFORE anyone moves this onto a queue and pays for it
+    /// in ordering guarantees.
+    ///
+    /// No lock, deliberately: the class is main-isolated, so the counter
+    /// inherits that isolation and cannot race. No off-main counter either —
+    /// `write` cannot run off the main actor, so such a field could only ever
+    /// read zero, and a value that cannot vary is not evidence.
+    public struct WriteCost: Sendable, Equatable {
+        public var rows = 0
+        public var seconds: Double = 0
+        /// The worst single row. The mean hides exactly the stall being hunted:
+        /// an fsync that is usually free and occasionally 40 ms averages to
+        /// "fine" and feels like a stutter.
+        public var worst: Double = 0
+        public var meanMs: Double { rows == 0 ? 0 : seconds / Double(rows) * 1000 }
+    }
+
+    public private(set) static var writeCost = WriteCost()
+
+    /// One field to append to a caller's existing telemetry row.
+    ///
+    /// `rows=` is the denominator and is not optional: without it a small
+    /// total is ambiguous between a cheap fsync and a quiet app, and those two
+    /// want opposite fixes.
+    public static var writeCostFragment: String {
+        let c = writeCost
+        return String(format: "logio=%.3fs rows=%d mean=%.2fms worst=%.1fms",
+                      c.seconds, c.rows, c.meanMs, c.worst * 1000)
+    }
+
     private func write(_ line: String) {
         guard let h = live, let data = (line + "\n").data(using: .utf8) else { return }
+        let tWrite = CFAbsoluteTimeGetCurrent()
         h.write(data)
         // Without this the tail of the session is in a buffer the kernel
         // discards when jetsam sends SIGKILL — which is the case this whole
         // file exists to survive.
         h.synchronizeFile()
+        let dt = CFAbsoluteTimeGetCurrent() - tWrite
+        Self.writeCost.rows += 1
+        Self.writeCost.seconds += dt
+        if dt > Self.writeCost.worst { Self.writeCost.worst = dt }
     }
 
     // MARK: - CSV
